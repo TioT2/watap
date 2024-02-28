@@ -21,7 +21,10 @@
     <ClInclude Include="src\watap.h">
       <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\watap_mem.h">
+    <ClInclude Include="src\watap_bin.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\watap_runtime.h">
       <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>

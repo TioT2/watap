@@ -1,7 +1,7 @@
 #ifndef __watap_h_
 #define __watap_h_
 
-#include "watap_def.h"
+#include "watap_runtime.h"
 
 /* TAP WebAssembly Runtime namespace */
 namespace watap

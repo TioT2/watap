@@ -2,7 +2,12 @@
 #define __watap_def_h_
 
 #include <iostream>
+#include <fstream>
 #include <vector>
+#include <map>
+#include <span>
+#include <format>
+#include <variant>
 
 /* Debug memory allocation support */ 
 #if !defined(NDEBUG)

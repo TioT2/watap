@@ -133,7 +133,8 @@
   <ItemGroup>
     <ClInclude Include="src\watap.h" />
     <ClInclude Include="src\watap_def.h" />
-    <ClInclude Include="src\watap_mem.h" />
+    <ClInclude Include="src\watap_bin.h" />
+    <ClInclude Include="src\watap_runtime.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\watap_main.cpp" />
