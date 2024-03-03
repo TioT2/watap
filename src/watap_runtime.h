@@ -127,7 +127,7 @@ namespace watap
      * RETURNS:
      *   (VOID *) Pointer to runtime memory that corresponds to WasmPtr;
      */
-    virtual VOID * GetPtr( UINT32 WasmPtr ) const = 0;
+    virtual VOID * GetPtr( UINT32 WasmPtr ) = 0;
 
     /* Is module trapped, trap requires module full restart.
      * ARGUMENTS: None.
@@ -138,10 +138,9 @@ namespace watap
 
     /* Module restart function.
      * ARGUMENTS: None.
-     * RETURNS:
-     *   (BOOL) TRUE if module successfully restarted, FALSE otherwise;
+     * RETURNS: None.
      */
-    virtual BOOL Restart( VOID ) = 0;
+    virtual VOID Restart( VOID ) = 0;
   }; /* End of 'runtime' class */
 
   /* WASM Runtime interface representation structure */

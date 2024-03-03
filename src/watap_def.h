@@ -1,6 +1,7 @@
 #ifndef __watap_def_h_
 #define __watap_def_h_
 
+#include <stack>
 #include <iostream>
 #include <fstream>
 #include <vector>
