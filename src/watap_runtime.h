@@ -1,131 +1,206 @@
-#ifndef __watap_storage_h_
-#define __watap_storage_h_
+
+
+#ifndef __watap_runtime_h_
+#define __watap_runtime_h_
 
 #include "watap_bin.h"
+#include "watap_utils.h"
 
 /* Project namespace // WASM Runtime implementation namespace */
 namespace watap
 {
-  /* Section data representation structure */
-  struct section_data
+  /* WASM Function signature representation structure */
+  struct function_signature
   {
-    section_id Id;           // Section type id
-    std::vector<UINT8> Data; // Section contents
-  }; /* End of 'section_data' structure */
+    std::vector<bin::value_type> ArgumentTypes; // List of argument types
+    std::optional<bin::value_type> ReturnType;  // List of return types
+  }; /* End of 'function_type' structure */
+
+  /* Function import requirement description */
+  struct function_import_description
+  {
+    std::string ModuleName;       // Function module name
+    std::string Name;             // Function name
+    function_signature Signature; // Function signature
+  }; /* End of 'function_import_description' structure */
+
+  /* Variable import requirement description */
+  struct variable_import_description
+  {
+    std::string ModuleName;       // Function module name
+    std::string Name;             // Function name
+    bin::value_type VariableType; // Type of imported variable
+    bin::mutability Mutability;   // It's mutability
+  }; /* End of 'variable_import_description' structure */
+
+  /* WASM Value representation structure */
+  union value
+  {
+    INT64   I64x2[2];  // 2 times INT64
+    UINT64  U64x2[2];  // 2 times UINT64
+    FLOAT64 F64x2[2];  // 2 times DOUBLE
+
+    INT32   I32x4[4];  // 4 times INT
+    UINT32  U32x4[4];  // 4 times UINT
+    FLOAT32 F32x4[4];  // 4 times FLOAT
+
+    INT16   I16x8[8];  // 8 times SHORT
+    UINT16  U16x8[8];  // 8 times USHORT
+
+    INT8    I8x16[16]; // 16 times CHAR
+    UINT8   U8x16[16]; // 16 times BYTE
+  }; /* End of 'value' structure */
+
+  /* Module source descrpitor */
+  using module_source_info = std::variant<
+    std::span<const BYTE>, // WASM (Binary representation)
+    std::string_view       // WAT  (Text representation)
+  >;
+
+  /* Import table descriptor */
+  struct import_table_info
+  {
+  }; /* End of 'import_table_info' structure */
 
   /* WASM Module representation structure */
-  class module
+  class module_source abstract
   {
   public:
-  }; /* End of 'module' structure */
+    /* Start function name getting function.
+     * ARGUMENTS: None.
+     * RETURNS:
+     *   (std::optional<std::string_view>) Start function name, if it is defined.
+     */
+    virtual std::optional<std::string_view> GetStartName( VOID ) const = 0;
+  }; /* End of 'module_source' class */
 
-  class co_binary_walker
-  {
-    const BYTE *const Begin;
-    const BYTE *Ptr;
-    SIZE_T DataSize;
-  public:
-    co_binary_walker( std::span<const BYTE> Data ) : Begin(Data.data()), Ptr(Data.data()), DataSize(Data.size_bytes())
-    {
-
-    }
-
-    template <typename type>
-      constexpr const type * Get( SIZE_T Count = 1 ) noexcept
-      {
-        auto Size = sizeof(type) * Count;
-
-        if (Ptr - Begin + Size >= DataSize)
-          return (Ptr = Begin + DataSize), nullptr;
-        return reinterpret_cast<const type *>((Ptr += Size) - Size);
-      }
-
-    template <typename type>
-      constexpr VOID Skip( SIZE_T Count = 1 ) noexcept
-      {
-        Ptr += sizeof(type) * Count;
-      }
-
-    template <typename type>
-      constexpr const type * operator()( VOID ) noexcept
-      {
-        if (Ptr - Begin + sizeof(type) >= DataSize)
-          return (Ptr = Begin + DataSize), nullptr;
-        return reinterpret_cast<const type *>((Ptr += sizeof(type)) - sizeof(type));
-      }
-
-    constexpr const BYTE * CurrentPtr( VOID ) const noexcept
-    {
-      return Ptr;
-    }
-
-    constexpr operator BOOL( VOID ) const noexcept
-    {
-      return Ptr < Begin + DataSize;
-    }
-  }; /* End of 'co_binary_walker' structure */
-
-  /* Section parsing function.
-   * ARGUMENTS:
-   *   - WASM module binary:
-   *       std::span<const BYTE> WasmBinary;
-   * RETURNS: None.
-   */
-  inline VOID ParseSections( std::span<const BYTE> WasmBinary )
-  {
-    auto BinaryWalker = co_binary_walker(WasmBinary);
-
-    const module_header *ModuleHeader = BinaryWalker.Get<module_header>();
-
-    if (!ModuleHeader || !ModuleHeader->Validate())
-      return;
-
-    std::cout
-              <<             "WASM Binary module."
-      << '\n' << std::format("Version: {:X}", ModuleHeader->Version)
-      << '\n' <<             "Sections:"
-      << '\n';
-
-    while (TRUE)
-    {
-      section_id SectionType;
-      if (auto Ptr = BinaryWalker.Get<section_id>())
-        SectionType = *Ptr;
-      else
-        break;
-
-      auto [Size, Offset] = leb128::DecodeUnsigned(BinaryWalker.CurrentPtr());
-      BinaryWalker.Skip<UINT8>(Offset);
-
-      const CHAR *SectionName;
-      switch (SectionType)
-      {
-      case section_id::eCustom    : SectionName = "Custom   "; break;
-      case section_id::eType      : SectionName = "Type     "; break;
-      case section_id::eImport    : SectionName = "Import   "; break;
-      case section_id::eFunction  : SectionName = "Function "; break;
-      case section_id::eTable     : SectionName = "Table    "; break;
-      case section_id::eMemory    : SectionName = "Memory   "; break;
-      case section_id::eGlobal    : SectionName = "Global   "; break;
-      case section_id::eExport    : SectionName = "Export   "; break;
-      case section_id::eStart     : SectionName = "Start    "; break;
-      case section_id::eElement   : SectionName = "Element  "; break;
-      case section_id::eCode      : SectionName = "Code     "; break;
-      case section_id::eData      : SectionName = "Data     "; break;
-      case section_id::eDataCount : SectionName = "DataCount"; break;
-      default                     : SectionName = "<unknown>"; break;
-      }
-
-      std::cout << std::format("  {} {}b\n", SectionName, Size);
-      BinaryWalker.Skip<UINT8>(Size);
-    }
-  } /* End of 'ParseSections' function */
-
-  /* virtual machine representation structure */
-  class virtual_machine
+  /* WASM Import table representation class */
+  class import_table abstract
   {
   public:
-  }; /* End of 'virtual_machine' class */
+  }; /* End of 'import_table' structure */
+
+  /* Module instance descriptor */
+  struct runtime_info
+  {
+    module_source *ModuleSource; // Actual module
+    import_table *ImportTable;   // Table of module imports
+  }; /* End of 'module_instance_info' structure */
+
+  /* Started module representation class */
+  class runtime abstract
+  {
+  public:
+    /* Module function calling function.
+     * ARGUMENTS:
+     *   - function name:
+     *       std::string_view FunctionName;
+     *   - function parameter list:
+     *       std::span<const value> Parameters;
+     * RETURNS:
+     *   (std::optional<value>) Return value if called, std::nullopt otherwise;
+     */
+    virtual std::optional<value> Call( std::string_view FunctionName, std::span<const value> Parameters = {} ) = 0;
+
+    /* Global value getting function.
+     * ARGUMENTS:
+     *   - global value name:
+     *       std::string_view GlobalName;
+     * RETURNS:
+     *   (VOID *) Pointer to runtime memory that corresponds to WasmPtr;
+     */
+    virtual BOOL SetGlobal( std::string_view GlobalName, value Value ) = 0;
+
+    /* Global value getting function.
+     * ARGUMENTS:
+     *   - global value name:
+     *       std::string_view GlobalName;
+     * RETURNS:
+     *   (VOID *) Pointer to runtime memory that corresponds to WasmPtr;
+     */
+    virtual std::optional<value> GetGlobal( std::string_view GlobalName ) const = 0;
+
+    /* Module pointer dereferencing function.
+     * ARGUMENTS:
+     *   - module ptr:
+     *       UINT32 WasmPtr;
+     * RETURNS:
+     *   (VOID *) Pointer to runtime memory that corresponds to WasmPtr;
+     */
+    virtual VOID * GetPtr( UINT32 WasmPtr ) const = 0;
+
+    /* Is module trapped, trap requires module full restart.
+     * ARGUMENTS: None.
+     * RETURNS:
+     *   (BOOL) TRUE if runtime is trapped, FALSE otherwise;
+     */
+    virtual BOOL IsTrapped( VOID ) const = 0;
+
+    /* Module restart function.
+     * ARGUMENTS: None.
+     * RETURNS:
+     *   (BOOL) TRUE if module successfully restarted, FALSE otherwise;
+     */
+    virtual BOOL Restart( VOID ) = 0;
+  }; /* End of 'runtime' class */
+
+  /* WASM Runtime interface representation structure */
+  class interface abstract
+  {
+  public:
+    /* Module source create function.
+     * ARGUMENTS:
+     *   - module source descriptor:
+     *       const module_source_info &Info;
+     * RETURNS:
+     *   (module_source *) Created module source pointer;
+     */ 
+    virtual module_source * CreateModuleSource( const module_source_info &Info ) = 0;
+
+    /* Module source destroy function.
+     * ARGUMENTS:
+     *   - module source pointer:
+     *       module_source *ModuleSource;
+     * RETURNS: None.
+     */ 
+    virtual VOID DestroyModuleSource( module_source *ModuleSource ) = 0;
+
+    /* Import table create function.
+     * ARGUMENTS:
+     *   - import table descriptor:
+     *       const import_table_info &Info;
+     * RETURNS:
+     *   (import_table *) Created import table pointer;
+     */ 
+    virtual import_table * CreateImportTable( const import_table_info &Info ) = 0;
+
+    /* Import table destroy function.
+     * ARGUMENTS:
+     *   - import table pointer:
+     *       import_table *ImportTable;
+     * RETURNS: None.
+     */ 
+    virtual VOID DestroyImportTable( import_table *ImportTable ) = 0;
+
+    /* Runtime create function.
+     * ARGUMENTS:
+     *   - runtime descriptor:
+     *       const runtime_info &Info;
+     * RETURNS:
+     *   (runtime *) Created import table pointer;
+     */ 
+    virtual runtime * CreateRuntime( const runtime_info &Info ) = 0;
+
+    /* Runtime destroy function.
+     * ARGUMENTS:
+     *   - runtime pointer:
+     *       runtime *Runtime;
+     * RETURNS: None.
+     */ 
+    virtual VOID DestroyRuntime( runtime *Runtime ) = 0;
+  }; /* End of 'interface' class */
 } /* end of 'watap' namespace */
 
-#endif // !defined(__watap_storage_h_)
+#endif // !defined(__watap_runtime_h_)
+
+/* END OF 'watap_runtime.h' FILE */

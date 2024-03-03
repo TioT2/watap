@@ -6,28 +6,107 @@
 #include "watap_def.h"
 
 /* Project namespace // WASM Runtime implementation namespace */
-namespace watap
+namespace watap::bin
 {
-  /* Memory type */
-  enum class type
+  /* Reference type representation enumeration */
+  enum class reference_type : UINT8
   {
-    eLimMin    = 0x00, // Minimal limit
-    eLimMinMax = 0x01, // Minimal and maximal limits
-    eFunction  = 0x60, // Function
-    eExternRef = 0x6F, // Extern reference
+    eExternRef = 0x6F, // External reference
     eFuncRef   = 0x70, // Function reference
-    eV128      = 0x7B, // 128 bit SIMD vector
+  }; /* End of 'reference_type' enumeration */
+
+  /* Numeric type representation enumeration */
+  enum class numeric_type : UINT8
+  {
     eF64       = 0x7C, //  64 bit floating point type
     eF32       = 0x7D, //  32 bit floating point type
     eI64       = 0x7E, //  64 bit integral type
     eI32       = 0x7F, //  32 bit integral type
+  }; /* End of 'numeric_type' enumeration */
+
+  /* SIMD type representation enumeration */
+  enum class vector_type : UINT8
+  {
+    eV128 = 0x7B, // 128 bit simd type
+  }; /* End of 'vector_type' enumeration */
+
+  /* Limit format representation structure */
+  enum class limit_type : UINT8
+  {
+    eMin    = 0x00, // Min
+    eMinMax = 0x01, // MinMax
+  }; /* End of 'limit_type' structure */
+
+  constexpr UINT8 FUNCTION_BEGIN = 0x60; // Function begin sign
+
+  /* Value type */
+  enum class value_type : UINT8
+  {
+    eExternRef = reference_type::eExternRef, // Extern reference
+    eFuncRef   = reference_type::eFuncRef,   // Function reference
+    eV128      = vector_type::eV128,         // 128 bit SIMD vector
+    eF64       = numeric_type::eF64,         //  64 bit floating point type
+    eF32       = numeric_type::eF32,         //  32 bit floating point type
+    eI64       = numeric_type::eI64,         //  64 bit integral type
+    eI32       = numeric_type::eI32,         //  32 bit integral type
   }; /* End of 'type' namespace */
 
-  struct limit_data
+  /* Value type size in bytes getting function.
+   * ARGUMENTS:
+   *   - value type:
+   *       value_Type Type;
+   * RETURNS:
+   *   (SIZE_T) It's size in bytes;
+   */
+  inline constexpr SIZE_T GetValueTypeSize( value_type Type ) noexcept
   {
-    UINT32 Min;
-    UINT32 Max;
-  };
+    switch (Type)
+    {
+    case value_type::eExternRef : return  4;
+    case value_type::eFuncRef   : return  4;
+    case value_type::eV128      : return 16;
+    case value_type::eF64       : return  8;
+    case value_type::eF32       : return  4;
+    case value_type::eI64       : return  8;
+    case value_type::eI32       : return  4;
+    default                     : return  0;
+    }
+  } /* End of 'GetValueTypeSize' function */
+
+  /* Mutability representation enumeration */
+  enum class mutability : UINT8
+  {
+    eConstant = 0x00, // Constant type
+    eMutable  = 0x01, // Mutable type
+  }; /* End of 'mutability' class */
+
+  enum class import_export_type : UINT8
+  {
+    eFunction = 0x00, // Function import
+    eTable    = 0x01, // Table import
+    eMemory   = 0x02, // Memory import
+    eGlobal   = 0x03, // Global import
+  }; /* End of 'import_type' enumeration */
+
+  /* Global type representation structure */
+  struct global_type
+  {
+    value_type Type;       // Type
+    mutability Mutability; // Mutability
+  }; /* End of 'global_type' structure */
+
+  struct limits
+  {
+    UINT32 Min =  0U; // Minimal limits value
+    UINT32 Max = ~0U; // Maximal limits value, 0xFFFFFFFF if max is not defined.
+  }; /* End of 'limits' structure */
+
+  /* Table type representation structure */
+  struct table_type
+  {
+    reference_type ValueReferenceType; // Value reference type
+    limits Limits;                     // Limits
+  }; /* End of 'table_type' structure */
 
   enum class instruction : UINT8
   {
@@ -35,14 +114,15 @@ namespace watap
     eNop                = 0x01, // Nop
     eBlock              = 0x02, // Just block
     eLoop               = 0x03, // Loop
-    eIfElse             = 0x04, // IfElse where Else is optional
+    eIf                 = 0x04, // Simple branching instruction
+    eElse               = 0x05, // Else. Must occur after if instruction only.
     eExpressionEnd      = 0x0B, // Expression end
     eBr                 = 0x0C, // Just goto
-    eBrIf               = 0x0D, // ???
-    eBrTable            = 0x0E, // switch/match
-    eReturn             = 0x0F, // return
-    eCall               = 0x10, // call function
-    eCallIndirect       = 0x11, // call from ptr
+    eBrIf               = 0x0D, // Goto if
+    eReturn             = 0x0F, // Return
+    eBrTable            = 0x0E, // Switch/match
+    eCall               = 0x10, // Call function by local index
+    eCallIndirect       = 0x11, // Call from ptr
 
     eDrop               = 0x1A, // Pop stack
     eSelect             = 0x1B, // Select nonzero numeric operand
@@ -86,8 +166,8 @@ namespace watap
     eI64Store16         = 0x3D, // Partially store variable into stack
     eI64Store32         = 0x3E, // Partially store variable into stack
 
-    eMemorySize         = 0x3F,   // Returns current memory size
-    eMemoryGrow         = 0x40,   // Extends memory and returns old size
+    eMemorySize         = 0x3F, // Returns current memory size
+    eMemoryGrow         = 0x40, // Extends memory and returns old size
 
     eI32Const           = 0x41, // Push int32 constant
     eI64Const           = 0x42, // Push int64 constant
@@ -223,8 +303,8 @@ namespace watap
     eI64Extend16S       = 0xC3, // Math operation
     eI64Extend32S       = 0xC4, // Math operation
 
-    eNullPush           = 0xD0, // Push 0
-    eNullCheck          = 0xD1, // Push (Pop == 0)
+    eRefNull            = 0xD0, // Push 0
+    eRefIsNull          = 0xD1, // Push (Pop == 0)
     eRefFunc            = 0xD2, // Push &Fn
 
     eSystem             = 0xFC, // System instruction (extended by system_instruction)
@@ -249,22 +329,14 @@ namespace watap
     eDataCount = 12, // Number of component data segments in data section
   }; /* End of 'memory_section' structure */
 
-  enum class import_description : UINT8
-  {
-    eType       = 0x00,
-    eTableType  = 0x01,
-    eMemoryType = 0x02,
-    eGlobalType = 0x03,
-  }; /* End of 'import_description' enumeration */
-
   /* Vector instructions */
-  enum class vector_instruction : UINT32
+  enum class vector_instruction : UINT8
   {
     // TODO TC4 Add V128 instruction set support
   }; /* End of 'vector_instruction' enumeration */
 
   /* System instructions */
-  enum class system_instruction : UINT32
+  enum class system_instruction : UINT8
   {
     eI32TruncSatF32S =  0, // Trunc i32 into f32 as signed
     eI32TruncSatF32U =  1, // Trunc i32 into f32 as unsigned
@@ -278,9 +350,9 @@ namespace watap
     eDataDrop        =  9, // Drop data segment (optimization hint)
     eMemoryCopy      = 10, // Copy from wasm data segment
     eMemoryFill      = 11, // Fill memory
-    eTableInit       = 12, // Init table
+    eTableInit       = 12, // Initialize new table
     eTableDrop       = 13, // Drop table
-    eTableCopy       = 14, // Copy table
+    eTableCopy       = 14, // Copy to another one table
     eTableGrow       = 15, // Grow table
     eTableSize       = 16, // Resize table
     eTableFill       = 17, // Fill table
@@ -307,60 +379,77 @@ namespace watap
   }; /* End of 'module_header' structure */
 
 #pragma pack(pop)
-
-  /* LEB128 worker utility */
-  namespace leb128
-  {
-    /* Unsigned LEB128 encoding function.
-     * ARGUMENTS:
-     *   - value to encode:
-     *       SIZE_T Value;
-     * RETURNS:
-     *   (std::pair<SIZE_T, SIZE_T>) Pair of resulting value and it's size in bytes.
-     */
-    constexpr inline std::pair<SIZE_T, UINT8> EncodeUnsigned( SIZE_T Value ) noexcept
-    {
-      SIZE_T Result = 0;
-      UINT8 Count = 0;
-
-      do
-      {
-        UINT8 Byte = Value & 0x7F;
-        Value >>= 7;
-        if (Value)
-          Byte |= 0x80;
-        Result = (Result << 8) | Byte;
-        Count++;
-      } while (Value);
-
-      return {Result, Count};
-    } /* End of 'EncodeUnsigned' function */
-
-    /* Unsigned LEB128 decoding function.
-     * ARGUMENTS:
-     *   - byte stream to scan bytes from:
-     *       const BYTE *Stream;
-     * RETURNS:
-     *   (std::pair<SIZE_T, UINT8>) Pair of scanned value and size of stream skip.
-     */
-    constexpr inline std::pair<SIZE_T, UINT8> DecodeUnsigned( const BYTE *Stream ) noexcept
-    {
-      SIZE_T Result = 0;
-      UINT8 Shift = 0;
-      UINT8 Byte = 0x80;
-
-      while (Byte & 0x80)
-      {
-        Byte = *Stream++;
-        Result |= static_cast<SIZE_T>(Byte & 0x7F) << Shift;
-        Shift += 7;
-      }
-
-      return {Result, Shift / 7};
-    } /* End of 'DecodeUnsigned' function */
-  } /* end of 'leb128' namespace */
 } /* end of 'watap' namespace */
 
-#endif // !defined(__watap_bin_h_)
+template <>
+  struct std::formatter<watap::bin::value_type>
+  {
+    constexpr auto parse( std::format_parse_context &Context ) const
+    {
+      return Context.end();
+    }
+
+    auto format( watap::bin::value_type Value, std::format_context &Context ) const
+    {
+      using namespace watap;
+
+      const CHAR *TypeName;
+      switch (Value)
+      {
+      case bin::value_type::eExternRef: TypeName = "ExternRef" ; break;
+      case bin::value_type::eFuncRef  : TypeName = "FuncRef"   ; break;
+      case bin::value_type::eV128     : TypeName = "V128"      ; break;
+      case bin::value_type::eF64      : TypeName = "F64"       ; break;
+      case bin::value_type::eF32      : TypeName = "F32"       ; break;
+      case bin::value_type::eI64      : TypeName = "I64"       ; break;
+      case bin::value_type::eI32      : TypeName = "I32"       ; break;
+      default                   : TypeName = "<invalid>" ;
+      }
+
+      return std::format_to(Context.out(), "{}", TypeName);
+    }
+  };
+
+template <>
+  struct std::formatter<watap::bin::limits>
+  {
+    constexpr auto parse( std::format_parse_context &Context ) const
+    {
+      return Context.end();
+    }
+
+    auto format( watap::bin::limits Value, std::format_context &Context ) const
+    {
+      if (Value.Max == ~0U)
+        return std::format_to(Context.out(), "[{}, inf)", Value.Min);
+      else
+        return std::format_to(Context.out(), "[{}, {}]", Value.Min, Value.Max);
+    }
+  };
+
+template <>
+  struct std::formatter<watap::bin::mutability>
+  {
+    constexpr auto parse( std::format_parse_context &Context ) const
+    {
+      return Context.end();
+    }
+
+    auto format( watap::bin::mutability Value, std::format_context &Context ) const
+    {
+      using namespace watap;
+      const CHAR *Str;
+
+      switch (Value)
+      {
+      case bin::mutability::eConstant : Str = "Constant" ; break;
+      case bin::mutability::eMutable  : Str = "Mutable"  ; break;
+      default                         : Str = "<invalid>";
+      }
+      return std::format_to(Context.out(), "{}", Str);
+    }
+  };
+
+  #endif // !defined(__watap_bin_h_)
 
 /* END OF 'watap_bin.h' FILE */

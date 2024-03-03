@@ -1,30 +1,43 @@
 #include "watap.h"
 
-using namespace watap;
+using namespace watap::common_types;
 
-INT main( INT Argc, const CHAR **Argv )
+std::optional<std::vector<BYTE>> ReadBinary( std::string_view Path )
 {
-  std::string_view WasmPath = "example/cgsg_forever.wasm";
-  if (Argc > 1)
-    WasmPath = Argv[1];
-
-  std::fstream File {WasmPath.data(), std::fstream::in | std::fstream::binary};
+  std::fstream File {Path.data(), std::fstream::in | std::fstream::binary};
 
   if (!File)
   {
-    std::cout << "Can't open file " << WasmPath << std::endl;
-    return 0;
+    std::cout << "Can't open file " << Path << std::endl;
+    return std::nullopt;
   }
 
-  std::vector<BYTE> WasmData;
+  std::vector<BYTE> Data;
 
   File.seekg(0, std::fstream::end);
-  WasmData.resize(File.tellg());
+  Data.resize(File.tellg());
   File.seekg(0, std::fstream::beg);
 
-  File.read((CHAR *)WasmData.data(), WasmData.size());
+  File.read((CHAR *)Data.data(), Data.size());
 
-  ParseSections(WasmData);
+  return std::move(Data);
+}
+
+INT main( INT Argc, const CHAR **Argv )
+{
+  std::vector<BYTE> WasmBin;
+  if (auto Opt = ReadBinary(Argc > 1 ? Argv[1] : "example/math.wasm"))
+    WasmBin = *Opt;
+  else
+    return 0;
+
+  auto Wasm = watap::impl::standard::Create();
+
+  auto ModuleSource = Wasm->CreateModuleSource(watap::module_source_info { WasmBin });
+
+  Wasm->DestroyModuleSource(ModuleSource);
+
+  watap::impl::standard::Destroy(Wasm);
 
   return 0;
 }

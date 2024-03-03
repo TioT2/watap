@@ -131,12 +131,18 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="src\impl\standard\watap_impl_standard.h" />
+    <ClInclude Include="src\impl\standard\watap_impl_standard_def.h" />
+    <ClInclude Include="src\impl\standard\watap_impl_standard_interface.h" />
     <ClInclude Include="src\watap.h" />
     <ClInclude Include="src\watap_def.h" />
     <ClInclude Include="src\watap_bin.h" />
     <ClInclude Include="src\watap_runtime.h" />
+    <ClInclude Include="src\watap_utils.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\impl\standard\watap_impl_standard.cpp" />
+    <ClCompile Include="src\impl\standard\watap_impl_standard_module_source.cpp" />
     <ClCompile Include="src\watap_main.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
