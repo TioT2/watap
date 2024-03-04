@@ -36,7 +36,7 @@ namespace watap::impl::standard
     SIZE_T ReturnTypeCount = 0;
     WATAP_SET_OR_RETURN(ReturnTypeCount, ParseUint(Stream), std::nullopt);
 
-    if (ReturnTypeCount-- > 1)
+    if (ReturnTypeCount-- > 0)
       WATAP_SET_OR_RETURN(Result.ReturnType, Stream.Get<bin::value_type>(), std::nullopt);
 
     while (ReturnTypeCount--)
@@ -251,7 +251,7 @@ namespace watap::impl::standard
         UINT32 CodeSize = 0;
         WATAP_SET_OR_RETURN(CodeSize, ParseUint(Stream), nullptr);
 
-        Function.ArgumentCount = Signature.ArgumentTypes.size();
+        Function.ArgumentCount = (UINT32)Signature.ArgumentTypes.size();
         Function.Locals = Signature.ArgumentTypes;
         Function.ReturnType = Signature.ReturnType;
 
@@ -302,7 +302,7 @@ namespace watap::impl::standard
         {
         case bin::import_export_type::eFunction:
         {
-          Result->FunctionExportTable.emplace(std::string(NameBytes.front(), NameBytes.back()), ExportIndex);
+          Result->FunctionExportTable.emplace(std::string(NameBytes.begin(), NameBytes.end()), ExportIndex);
           break;
         }
         }

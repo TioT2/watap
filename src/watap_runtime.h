@@ -33,7 +33,7 @@ namespace watap
     bin::mutability Mutability;   // It's mutability
   }; /* End of 'variable_import_description' structure */
 
-  /* WASM Value representation structure */
+  /* WASM Value representation structure, analog of __m128 practically */
   union value
   {
     INT64   I64x2[2];  // 2 times INT64

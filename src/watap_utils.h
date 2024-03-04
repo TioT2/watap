@@ -91,7 +91,7 @@ namespace watap
      * RETURNS:
      *   (std::pair<SIZE_T, UINT8>) Pair of scanned value and size of stream skip.
      */
-    constexpr inline std::pair<SIZE_T, UINT8> DecodeUnsigned( const BYTE *Stream ) noexcept
+    [[nodiscard]] constexpr std::pair<SIZE_T, UINT8> DecodeUnsigned( const BYTE *Stream ) noexcept
     {
       SIZE_T Result = 0;
       UINT8 Shift = 0;
@@ -106,6 +106,35 @@ namespace watap
 
       return {Result, Shift / 7};
     } /* End of 'DecodeUnsigned' function */
+
+    /* Signed LEB128 decoding function.
+     * TEMPLATE ARGUMENTS:
+     *   - size of signed number in bits:
+     *       UINT32 BIT_SIZE;
+     * ARGUMENTS:
+     *   - byte stream to scan bytes from:
+     *       const BYTE *Stream;
+     * RETURNS:
+     *   (std::pair<SIZE_T, UINT8>) Pair of scanned value and size of stream skip.
+     */
+    template <UINT32 BIT_SIZE>
+      [[nodiscard]] constexpr std::pair<SSIZE_T, UINT8> DecodeSigned( const BYTE *Stream ) noexcept
+      {
+        SSIZE_T Result = 0;
+        UINT8 Shift = 0;
+        UINT8 Byte;
+
+        do
+        {
+          Byte = *Stream++;
+          Result |= (Byte & 0x7F) << Shift;
+          Shift += 7;
+        } while (Byte & 0x80);
+
+        if ((Shift < BIT_SIZE) && (Byte & 0x40))
+          Result |= (~0ull) << Shift;
+        return {Result, Shift / 7};
+      } /* End of 'DecodeSigned' function */
   } /* end of 'leb128' namespace */
 } /* end of 'watap' namespace */
 

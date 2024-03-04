@@ -4,6 +4,7 @@
 #include <stack>
 #include <iostream>
 #include <fstream>
+#include <array>
 #include <vector>
 #include <map>
 #include <span>

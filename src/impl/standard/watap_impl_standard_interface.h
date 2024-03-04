@@ -57,6 +57,8 @@ namespace watap::impl::standard
      */ 
     runtime * CreateRuntime( const runtime_info &Info )
     {
+      if (auto Impl = dynamic_cast<const module_source_impl *>(Info.ModuleSource))
+        return new runtime_impl(*Impl);
       return nullptr;
     } /* End of 'CreateRuntime' function */
 
@@ -68,7 +70,8 @@ namespace watap::impl::standard
      */ 
     VOID DestroyRuntime( runtime *Runtime )
     {
-
+      if (auto Impl = dynamic_cast<runtime_impl *>(Runtime))
+        delete Impl;
     } /* End of 'DestroyRuntime' function */
   }; /* End of 'interface_impl' class */
 } /* end of 'watap_impl_standard_interface' namespace */
