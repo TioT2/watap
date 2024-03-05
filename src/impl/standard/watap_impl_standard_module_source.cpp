@@ -131,11 +131,11 @@ namespace watap::impl::standard
   /* Module data by sections splitting function.
    * ARGUMENTS:
    *   - module data:
-   *       std::span<const BYTE> Data;
+   *       std::span<const UINT8> Data;
    * RETURNS:
-   *   (std::optional<std::map<bin::section_id, std::span<const BYTE>>>) Module section datas;
+   *   (std::optional<std::map<bin::section_id, std::span<const UINT8>>>) Module section datas;
    */
-  std::optional<std::map<bin::section_id, std::span<const BYTE>>> ParseSections( std::span<const BYTE> Data )
+  std::optional<std::map<bin::section_id, std::span<const UINT8>>> ParseSections( std::span<const UINT8> Data )
   {
     binary_stream Stream {Data};
 
@@ -148,7 +148,7 @@ namespace watap::impl::standard
         return std::nullopt;
     }
 
-    std::map<bin::section_id, std::span<const BYTE>> Sections;
+    std::map<bin::section_id, std::span<const UINT8>> Sections;
 
     while (TRUE)
     {
@@ -176,7 +176,7 @@ namespace watap::impl::standard
       case bin::section_id::eCode     :
       case bin::section_id::eData     :
       case bin::section_id::eDataCount:
-        Sections.emplace(SectionId, std::span<const BYTE>(Stream.CurrentPtr(), SectionSize));
+        Sections.emplace(SectionId, std::span<const UINT8>(Stream.CurrentPtr(), SectionSize));
         break;
 
       default: // Invalid section error
@@ -200,12 +200,12 @@ namespace watap::impl::standard
   {
     if (std::holds_alternative<std::string_view>(Info))
       return nullptr;
-    std::span<const BYTE> Data = std::get<std::span<const BYTE>>(Info);
+    std::span<const UINT8> Data = std::get<std::span<const UINT8>>(Info);
 
     std::unique_ptr<module_source_impl> Result {new module_source_impl()};
 
     // Parse sections from code
-    std::map<bin::section_id, std::span<const BYTE>> Sections;
+    std::map<bin::section_id, std::span<const UINT8>> Sections;
     WATAP_SET_OR_RETURN(Sections, ParseSections(Data), nullptr);
   
     std::vector<function_signature> FunctionSignatures;
@@ -255,7 +255,7 @@ namespace watap::impl::standard
         Function.Locals = Signature.ArgumentTypes;
         Function.ReturnType = Signature.ReturnType;
 
-        const BYTE *FuncLocalsBegin = Stream.CurrentPtr();
+        const UINT8 *FuncLocalsBegin = Stream.CurrentPtr();
 
         UINT32 LocalBatchCount = 0;
         WATAP_SET_OR_RETURN(LocalBatchCount, ParseUint(Stream), nullptr);
@@ -271,10 +271,10 @@ namespace watap::impl::standard
             Function.Locals.push_back(ValueType);
         }
 
-        const BYTE *FuncLocalsEnd = Stream.CurrentPtr();
+        const UINT8 *FuncLocalsEnd = Stream.CurrentPtr();
 
         Function.Instructions.resize(CodeSize - (FuncLocalsEnd - FuncLocalsBegin));
-        std::memcpy(Function.Instructions.data(), Stream.Get<BYTE>(Function.Instructions.size()), Function.Instructions.size());
+        std::memcpy(Function.Instructions.data(), Stream.Get<UINT8>(Function.Instructions.size()), Function.Instructions.size());
 
         Result->Functions.push_back(std::move(Function));
       }
@@ -290,7 +290,7 @@ namespace watap::impl::standard
 
       while (ExportCount--)
       {
-        std::span<const BYTE> NameBytes;
+        std::span<const UINT8> NameBytes;
         WATAP_SET_OR_RETURN(NameBytes, ParseVec<UINT8>(Stream), nullptr);
 
         bin::import_export_type ExportType;

@@ -9,11 +9,11 @@ namespace watap
   /* Binary data walker */
   class binary_stream
   {
-    const BYTE *const Begin;
-    const BYTE *Ptr;
+    const UINT8 *const Begin;
+    const UINT8 *Ptr;
     SIZE_T DataSize;
   public:
-    binary_stream( std::span<const BYTE> Data ) : Begin(Data.data()), Ptr(Data.data()), DataSize(Data.size_bytes())
+    binary_stream( std::span<const UINT8> Data ) : Begin(Data.data()), Ptr(Data.data()), DataSize(Data.size_bytes())
     {
 
     }
@@ -45,7 +45,7 @@ namespace watap
         return reinterpret_cast<const type *>((Ptr += sizeof(type)) - sizeof(type));
       }
 
-    constexpr const BYTE * CurrentPtr( VOID ) const noexcept
+    constexpr const UINT8 * CurrentPtr( VOID ) const noexcept
     {
       return Ptr;
     }
@@ -87,11 +87,11 @@ namespace watap
     /* Unsigned LEB128 decoding function.
      * ARGUMENTS:
      *   - byte stream to scan bytes from:
-     *       const BYTE *Stream;
+     *       const UINT8 *Stream;
      * RETURNS:
      *   (std::pair<SIZE_T, UINT8>) Pair of scanned value and size of stream skip.
      */
-    [[nodiscard]] constexpr std::pair<SIZE_T, UINT8> DecodeUnsigned( const BYTE *Stream ) noexcept
+    [[nodiscard]] constexpr std::pair<SIZE_T, UINT8> DecodeUnsigned( const UINT8 *Stream ) noexcept
     {
       SIZE_T Result = 0;
       UINT8 Shift = 0;
@@ -113,12 +113,12 @@ namespace watap
      *       UINT32 BIT_SIZE;
      * ARGUMENTS:
      *   - byte stream to scan bytes from:
-     *       const BYTE *Stream;
+     *       const UINT8 *Stream;
      * RETURNS:
      *   (std::pair<SIZE_T, UINT8>) Pair of scanned value and size of stream skip.
      */
     template <UINT32 BIT_SIZE>
-      [[nodiscard]] constexpr std::pair<SSIZE_T, UINT8> DecodeSigned( const BYTE *Stream ) noexcept
+      [[nodiscard]] constexpr std::pair<SSIZE_T, UINT8> DecodeSigned( const UINT8 *Stream ) noexcept
       {
         SSIZE_T Result = 0;
         UINT8 Shift = 0;
@@ -139,3 +139,5 @@ namespace watap
 } /* end of 'watap' namespace */
 
 #endif // !defined(__watap_utils_h_)
+
+/* END OF 'watap_utils.h' FILE */

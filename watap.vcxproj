@@ -18,10 +18,25 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\impl\standard\watap_impl_standard.h" />
+    <ClInclude Include="src\impl\standard\watap_impl_standard_def.h" />
+    <ClInclude Include="src\impl\standard\watap_impl_standard_interface.h" />
+    <ClInclude Include="src\watap.h" />
+    <ClInclude Include="src\watap_bin.h" />
+    <ClInclude Include="src\watap_def.h" />
+    <ClInclude Include="src\watap_interface.h" />
+    <ClInclude Include="src\watap_utils.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\impl\standard\watap_impl_standard.cpp" />
+    <ClCompile Include="src\impl\standard\watap_impl_standard_module_source.cpp" />
+    <ClCompile Include="src\watap_main.cpp" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
-    <VCProjectVersion>17.0</VCProjectVersion>
+    <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{5ec1fd86-88a5-4529-8c17-75a4ef7595b2}</ProjectGuid>
+    <ProjectGuid>{fa2013a1-063e-457b-8e72-af8fdb951bb3}</ProjectGuid>
     <RootNamespace>watap</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
@@ -29,26 +44,26 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
@@ -70,6 +85,26 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <LinkIncremental>true</LinkIncremental>
+    <OutDir>$(SolutionDir)\out\$(Configuration)\</OutDir>
+    <IntDir>out\$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+    <OutDir>$(SolutionDir)\out\$(Configuration)\</OutDir>
+    <IntDir>out\$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <LinkIncremental>true</LinkIncremental>
+    <OutDir>$(SolutionDir)\out\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>out\$(Platform)\$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <LinkIncremental>false</LinkIncremental>
+    <OutDir>$(SolutionDir)\out\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>out\$(Platform)\$(Configuration)\</IntDir>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -130,21 +165,6 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <ClInclude Include="src\impl\standard\watap_impl_standard.h" />
-    <ClInclude Include="src\impl\standard\watap_impl_standard_def.h" />
-    <ClInclude Include="src\impl\standard\watap_impl_standard_interface.h" />
-    <ClInclude Include="src\watap.h" />
-    <ClInclude Include="src\watap_def.h" />
-    <ClInclude Include="src\watap_bin.h" />
-    <ClInclude Include="src\watap_runtime.h" />
-    <ClInclude Include="src\watap_utils.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="src\impl\standard\watap_impl_standard.cpp" />
-    <ClCompile Include="src\impl\standard\watap_impl_standard_module_source.cpp" />
-    <ClCompile Include="src\watap_main.cpp" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

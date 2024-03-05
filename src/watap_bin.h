@@ -42,13 +42,13 @@ namespace watap::bin
   /* Value type */
   enum class value_type : UINT8
   {
-    eExternRef = reference_type::eExternRef, // Extern reference
-    eFuncRef   = reference_type::eFuncRef,   // Function reference
-    eV128      = vector_type::eV128,         // 128 bit SIMD vector
-    eF64       = numeric_type::eF64,         //  64 bit floating point type
-    eF32       = numeric_type::eF32,         //  32 bit floating point type
-    eI64       = numeric_type::eI64,         //  64 bit integral type
-    eI32       = numeric_type::eI32,         //  32 bit integral type
+    eExternRef = (UINT8)reference_type::eExternRef, // Extern reference
+    eFuncRef   = (UINT8)reference_type::eFuncRef,   // Function reference
+    eV128      = (UINT8)vector_type::eV128,         // 128 bit SIMD vector
+    eF64       = (UINT8)numeric_type::eF64,         //  64 bit floating point type
+    eF32       = (UINT8)numeric_type::eF32,         //  32 bit floating point type
+    eI64       = (UINT8)numeric_type::eI64,         //  64 bit integral type
+    eI32       = (UINT8)numeric_type::eI32,         //  32 bit integral type
   }; /* End of 'type' namespace */
 
   /* Value type size in bytes getting function.
@@ -384,11 +384,27 @@ namespace watap::bin
 template <>
   struct std::formatter<watap::bin::value_type>
   {
+    /* Format parameters parsing function.
+     * ARGUENTS:
+     *   - parsing context:
+     *       std::format_parse_context &Context;
+     * RETURNS:
+     *   (auto) Format argument parse context end.
+     */
     constexpr auto parse( std::format_parse_context &Context ) const
     {
       return Context.end();
-    }
+    } /* End of 'parse' function */
 
+    /* Format parameters parsing function.
+     * ARGUENTS:
+     *   - value to format:
+     *       watap::bin::value_type Value;
+     *   - formatting context:
+     *       std::format_context &Context;
+     * RETURNS:
+     *   (auto) Format context end.
+     */
     auto format( watap::bin::value_type Value, std::format_context &Context ) const
     {
       using namespace watap;
@@ -396,28 +412,44 @@ template <>
       const CHAR *TypeName;
       switch (Value)
       {
-      case bin::value_type::eExternRef: TypeName = "ExternRef" ; break;
-      case bin::value_type::eFuncRef  : TypeName = "FuncRef"   ; break;
-      case bin::value_type::eV128     : TypeName = "V128"      ; break;
-      case bin::value_type::eF64      : TypeName = "F64"       ; break;
-      case bin::value_type::eF32      : TypeName = "F32"       ; break;
-      case bin::value_type::eI64      : TypeName = "I64"       ; break;
-      case bin::value_type::eI32      : TypeName = "I32"       ; break;
-      default                   : TypeName = "<invalid>" ;
+      case bin::value_type::eExternRef : TypeName = "ExternRef" ; break;
+      case bin::value_type::eFuncRef   : TypeName = "FuncRef"   ; break;
+      case bin::value_type::eV128      : TypeName = "V128"      ; break;
+      case bin::value_type::eF64       : TypeName = "F64"       ; break;
+      case bin::value_type::eF32       : TypeName = "F32"       ; break;
+      case bin::value_type::eI64       : TypeName = "I64"       ; break;
+      case bin::value_type::eI32       : TypeName = "I32"       ; break;
+      default                          : TypeName = "<invalid>" ;
       }
 
       return std::format_to(Context.out(), "{}", TypeName);
     }
-  };
+  }; /* End of 'std::formatter<watap::bin::value_type>' structure */
 
 template <>
   struct std::formatter<watap::bin::limits>
   {
+    /* Format parameters parsing function.
+     * ARGUENTS:
+     *   - parsing context:
+     *       std::format_parse_context &Context;
+     * RETURNS:
+     *   (auto) Format argument parse context end.
+     */
     constexpr auto parse( std::format_parse_context &Context ) const
     {
       return Context.end();
-    }
+    } /* End of 'parse' function */
 
+    /* Format parameters parsing function.
+     * ARGUENTS:
+     *   - value to format:
+     *       watap::bin::limits Value;
+     *   - formatting context:
+     *       std::format_context &Context;
+     * RETURNS:
+     *   (auto) Format context end.
+     */
     auto format( watap::bin::limits Value, std::format_context &Context ) const
     {
       if (Value.Max == ~0U)
@@ -425,16 +457,32 @@ template <>
       else
         return std::format_to(Context.out(), "[{}, {}]", Value.Min, Value.Max);
     }
-  };
+  }; /* End of 'std::formatter<watap::bin::limits>' structure */
 
 template <>
   struct std::formatter<watap::bin::mutability>
   {
+    /* Format parameters parsing function.
+     * ARGUENTS:
+     *   - parsing context:
+     *       std::format_parse_context &Context;
+     * RETURNS:
+     *   (auto) Format argument parse context end.
+     */
     constexpr auto parse( std::format_parse_context &Context ) const
     {
       return Context.end();
-    }
+    } /* End of 'parse' function */
 
+    /* Format parameters parsing function.
+     * ARGUENTS:
+     *   - value to format:
+     *       watap::bin::mutability Value;
+     *   - formatting context:
+     *       std::format_context &Context;
+     * RETURNS:
+     *   (auto) Format context end.
+     */
     auto format( watap::bin::mutability Value, std::format_context &Context ) const
     {
       using namespace watap;
@@ -447,8 +495,8 @@ template <>
       default                         : Str = "<invalid>";
       }
       return std::format_to(Context.out(), "{}", Str);
-    }
-  };
+    } /* End of 'format' function */
+  }; /* End of 'std::formatter<watap::bin::mutability>' structure */
 
   #endif // !defined(__watap_bin_h_)
 

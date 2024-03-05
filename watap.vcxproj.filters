@@ -14,23 +14,23 @@
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
     <Filter Include="Source Files\Implementations">
-      <UniqueIdentifier>{d448cd5d-a82b-4813-9284-b03ccccad426}</UniqueIdentifier>
+      <UniqueIdentifier>{56ac8fa1-2086-4654-9c0b-bbf925a56dd0}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\Implementations\Standard">
-      <UniqueIdentifier>{3a3f3bda-de11-43e7-8b26-f6459cfcf95c}</UniqueIdentifier>
+      <UniqueIdentifier>{a9f201ed-a7a8-4423-80f8-0196fc704172}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\watap_def.h">
-      <Filter>Source Files</Filter>
-    </ClInclude>
     <ClInclude Include="src\watap.h">
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="src\watap_bin.h">
       <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\watap_runtime.h">
+    <ClInclude Include="src\watap_def.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\watap_interface.h">
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="src\watap_utils.h">
@@ -39,10 +39,10 @@
     <ClInclude Include="src\impl\standard\watap_impl_standard.h">
       <Filter>Source Files\Implementations\Standard</Filter>
     </ClInclude>
-    <ClInclude Include="src\impl\standard\watap_impl_standard_interface.h">
+    <ClInclude Include="src\impl\standard\watap_impl_standard_def.h">
       <Filter>Source Files\Implementations\Standard</Filter>
     </ClInclude>
-    <ClInclude Include="src\impl\standard\watap_impl_standard_def.h">
+    <ClInclude Include="src\impl\standard\watap_impl_standard_interface.h">
       <Filter>Source Files\Implementations\Standard</Filter>
     </ClInclude>
   </ItemGroup>

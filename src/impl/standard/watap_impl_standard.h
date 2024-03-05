@@ -3,7 +3,7 @@
 #ifndef __watap_impl_standard_h_
 #define __watap_impl_standard_h_
 
-#include "../../watap_runtime.h"
+#include "../../watap_interface.h"
 
 /* Project namespace // WASM Namespace // Implementation namesapce // Standard (multiplatform) implementation namespace */
 namespace watap::impl::standard

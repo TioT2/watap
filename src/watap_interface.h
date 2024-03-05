@@ -1,7 +1,7 @@
 
 
-#ifndef __watap_runtime_h_
-#define __watap_runtime_h_
+#ifndef __watap_interface_h_
+#define __watap_interface_h_
 
 #include "watap_bin.h"
 #include "watap_utils.h"
@@ -48,12 +48,12 @@ namespace watap
     UINT16  U16x8[8];  // 8 times USHORT
 
     INT8    I8x16[16]; // 16 times CHAR
-    UINT8   U8x16[16]; // 16 times BYTE
+    UINT8   U8x16[16]; // 16 times UINT8
   }; /* End of 'value' structure */
 
   /* Module source descrpitor */
   using module_source_info = std::variant<
-    std::span<const BYTE>, // WASM (Binary representation)
+    std::span<const UINT8>, // WASM (Binary representation)
     std::string_view       // WAT  (Text representation)
   >;
 
@@ -200,6 +200,6 @@ namespace watap
   }; /* End of 'interface' class */
 } /* end of 'watap' namespace */
 
-#endif // !defined(__watap_runtime_h_)
+#endif // !defined(__watap_interface_h_)
 
-/* END OF 'watap_runtime.h' FILE */
+/* END OF 'watap_interface.h' FILE */

@@ -2,7 +2,7 @@
 
 using namespace watap::common_types;
 
-std::optional<std::vector<BYTE>> ReadBinary( std::string_view Path )
+std::optional<std::vector<UINT8>> ReadBinary( std::string_view Path )
 {
   std::fstream File {Path.data(), std::fstream::in | std::fstream::binary};
 
@@ -12,10 +12,10 @@ std::optional<std::vector<BYTE>> ReadBinary( std::string_view Path )
     return std::nullopt;
   }
 
-  std::vector<BYTE> Data;
+  std::vector<UINT8> Data;
 
   File.seekg(0, std::fstream::end);
-  Data.resize(File.tellg());
+  Data.resize(static_cast<SIZE_T>(File.tellg()));
   File.seekg(0, std::fstream::beg);
 
   File.read((CHAR *)Data.data(), Data.size());
@@ -25,7 +25,7 @@ std::optional<std::vector<BYTE>> ReadBinary( std::string_view Path )
 
 INT main( INT Argc, const CHAR **Argv )
 {
-  std::vector<BYTE> WasmBin;
+  std::vector<UINT8> WasmBin;
   if (auto Opt = ReadBinary(Argc > 1 ? Argv[1] : "example/math.wasm"))
     WasmBin = *Opt;
   else

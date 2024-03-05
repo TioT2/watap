@@ -26,3 +26,5 @@ namespace watap::impl::standard
       delete Impl;
   } /* End of 'Destroy' function */
 } /* end of 'watap::impl::standard' namespace */
+
+/* END OF 'watap_impl_standard.cpp' FILE */

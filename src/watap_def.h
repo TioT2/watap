@@ -126,3 +126,4 @@ namespace watap
 
 #endif // !defined(__watap_def_h_)
 
+/* END OF 'watap_def.h' FILE */
