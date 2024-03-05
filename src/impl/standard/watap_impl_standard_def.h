@@ -8,19 +8,41 @@
 #endif // defined(WATAP_IMPL_STANDARD)
 
 /* Evaluation binary operator implementation generation macro */
-#define WATAP_STANDARD_DEFINE_EXEC_OP_BINARY(TYPE, OP) { TYPE *Ptr = EvaluationStack.Pop<TYPE>(sizeof(TYPE));  Ptr[-1] = (Ptr[-1] OP *Ptr);     break; }
+#define WATAP_STANDARD_DEFINE_EXEC_OP_BINARY(TYPE, OP) { TYPE *Ptr = EvaluationStack.Pop<TYPE>(sizeof(TYPE)); Ptr[-1] = (Ptr[-1] OP *Ptr); break; }
 
 /* Evaluation binary function implementation generation macro */
-#define WATAP_STANDARD_DEFINE_EXEC_FN_BINARY(TYPE, FN) { TYPE *Ptr = EvaluationStack.Pop<TYPE>(sizeof(TYPE));  Ptr[-1] = (FN(Ptr[-1], *Ptr));   break; }
+#define WATAP_STANDARD_DEFINE_EXEC_FN_BINARY(TYPE, FN) { TYPE *Ptr = EvaluationStack.Pop<TYPE>(sizeof(TYPE)); Ptr[-1] = (FN(Ptr[-1], *Ptr)); break; }
 
 /* Evaluation unary function implementation generation macro */
-#define WATAP_STANDARD_DEFINE_EXEC_FN_UNARY(TYPE, FN)  { TYPE *Ptr = EvaluationStack.Get<TYPE>() - 1;         *Ptr = (FN(*Ptr));                break; }
+#define WATAP_STANDARD_DEFINE_EXEC_FN_UNARY(TYPE, FN) { TYPE *Ptr = EvaluationStack.Get<TYPE>() - 1; *Ptr = (FN(*Ptr)); break; }
 
-/* WATAP_STANDARD_ROT_FUNCTION_WRAPPER macro wrapper */
+/* WATAP_STANDARD_ROT_FUNCTION_WRAPPER macro helper */
 #define __WATAP_STANDARD_ROT_FUNCTION_WRAPPER(LARG, RARG) (LARG, static_cast<INT>(RARG))
 
 /* Wrapper, special for std::rot* functions don't emit warnings during WIN32 Compilation */
 #define WATAP_STANDARD_ROT_FUNCTION_WRAPPER(FN) FN __WATAP_STANDARD_ROT_FUNCTION_WRAPPER
+
+/* Heap loading with builtin conversion implementaion function */
+#define WATAP_STANDARD_DEFINE_HEAP_LOAD_FROM(TYPE, FROM)                                             \
+{                                                                                                    \
+  auto [Ptr, Offset] = leb128::DecodeUnsigned(InstructionPointer);                                   \
+  InstructionPointer += Offset;                                                                      \
+  EvaluationStack.Push<TYPE>(sizeof(TYPE))[-1] = *reinterpret_cast<const FROM *>(Heap.data() + Ptr); \
+  break;                                                                                             \
+}
+
+/* Heap loading with builtin conversion implementaion function */
+#define WATAP_STANDARD_DEFINE_HEAP_STORE_TO(TYPE, TO)                                                     \
+{                                                                                                         \
+  auto [Ptr, Offset] = leb128::DecodeUnsigned(InstructionPointer);                                        \
+  InstructionPointer += Offset;                                                                           \
+  *reinterpret_cast<TO *>(Heap.data() + Ptr) = static_cast<TO>(*EvaluationStack.Pop<TYPE>(sizeof(TYPE))); \
+  break;                                                                                                  \
+}
+
+/* Integer extend generation macro definition */
+#define WATAP_STANDARD_DEFINE_I_EXTEND(BASE, SUB) { BASE *P = EvaluationStack.Get<BASE>() - 1; *P = static_cast<BASE>(*reinterpret_cast<SUB *>(P)); break; }
+
 
 /* Project namespace // WASM Namespace // Implementation namesapce // Standard (multiplatform) implementation namespace */
 namespace watap::impl::standard
@@ -78,7 +100,6 @@ namespace watap::impl::standard
   class module_source_impl : public module_source
   {
   public:
-
     std::optional<std::string> StartName;                           // Start function name
     std::vector<function> Functions;                                // Function list
     std::map<std::string, UINT32, std::less<>> FunctionExportTable; // Exported function table
@@ -118,7 +139,7 @@ namespace watap::impl::standard
       SIZE_T CurrentOff = Current - Begin;
 
       if ((Begin = reinterpret_cast<UINT8 *>(std::realloc(Begin, Size))) == nullptr)
-        std::terminate(); // TODO TC4 Somehow fix this
+        std::terminate(); // TODO TC4 WASM Somehow fix this
 
       Current = Begin + CurrentOff;
       End = Begin + Size;
@@ -309,7 +330,7 @@ namespace watap::impl::standard
           case bin::instruction::eBrIf              : break;
           case bin::instruction::eReturn            :
           {
-            // TODO TC4 Fix return
+            // TODO TC4 WASM Fix return
             Continue = FALSE;
             break;
           }
@@ -330,7 +351,8 @@ namespace watap::impl::standard
           }
 
           case bin::instruction::eCallIndirect      : break;
-          case bin::instruction::eDrop              : break;
+
+          case bin::instruction::eDrop              : break; // TODO TC4 WASM Implement type context context.
           case bin::instruction::eSelect            : break;
           case bin::instruction::eSelectTyped       : break;
 
@@ -371,31 +393,49 @@ namespace watap::impl::standard
           case bin::instruction::eGlobalSet         : break;
           case bin::instruction::eTableGet          : break;
           case bin::instruction::eTableSet          : break;
-          case bin::instruction::eI32Load           : break;
-          case bin::instruction::eI64Load           : break;
-          case bin::instruction::eF32Load           : break;
-          case bin::instruction::eF64Load           : break;
-          case bin::instruction::eI32Load8S         : break;
-          case bin::instruction::eI32Load8U         : break;
-          case bin::instruction::eI32Load16S        : break;
-          case bin::instruction::eI32Load16U        : break;
-          case bin::instruction::eI64Load8S         : break;
-          case bin::instruction::eI64Load8U         : break;
-          case bin::instruction::eI64Load16S        : break;
-          case bin::instruction::eI64Load16U        : break;
-          case bin::instruction::eI64Load32S        : break;
-          case bin::instruction::eI64Load32U        : break;
-          case bin::instruction::eI32Store          : break;
-          case bin::instruction::eI64Store          : break;
-          case bin::instruction::eF32Store          : break;
-          case bin::instruction::eF64Store          : break;
-          case bin::instruction::eI32Store8         : break;
-          case bin::instruction::eI32Store16        : break;
-          case bin::instruction::eI64Store8         : break;
-          case bin::instruction::eI64Store16        : break;
-          case bin::instruction::eI64Store32        : break;
-          case bin::instruction::eMemorySize        : break;
-          case bin::instruction::eMemoryGrow        : break;
+
+          case bin::instruction::eI32Load           : WATAP_STANDARD_DEFINE_HEAP_LOAD_FROM( UINT32,  UINT32)
+          case bin::instruction::eI64Load           : WATAP_STANDARD_DEFINE_HEAP_LOAD_FROM( UINT64,  UINT64)
+          case bin::instruction::eF32Load           : WATAP_STANDARD_DEFINE_HEAP_LOAD_FROM(FLOAT32, FLOAT32)
+          case bin::instruction::eF64Load           : WATAP_STANDARD_DEFINE_HEAP_LOAD_FROM(FLOAT64, FLOAT64)
+
+          case bin::instruction::eI32Load8S         : WATAP_STANDARD_DEFINE_HEAP_LOAD_FROM(UINT32,  INT8 )
+          case bin::instruction::eI32Load8U         : WATAP_STANDARD_DEFINE_HEAP_LOAD_FROM(UINT32, UINT8 )
+          case bin::instruction::eI32Load16S        : WATAP_STANDARD_DEFINE_HEAP_LOAD_FROM(UINT32,  INT16)
+          case bin::instruction::eI32Load16U        : WATAP_STANDARD_DEFINE_HEAP_LOAD_FROM(UINT32, UINT16)
+
+          case bin::instruction::eI64Load8S         : WATAP_STANDARD_DEFINE_HEAP_LOAD_FROM(UINT64,  INT8 )
+          case bin::instruction::eI64Load8U         : WATAP_STANDARD_DEFINE_HEAP_LOAD_FROM(UINT64, UINT8 )
+          case bin::instruction::eI64Load16S        : WATAP_STANDARD_DEFINE_HEAP_LOAD_FROM(UINT64,  INT16)
+          case bin::instruction::eI64Load16U        : WATAP_STANDARD_DEFINE_HEAP_LOAD_FROM(UINT64, UINT16)
+          case bin::instruction::eI64Load32S        : WATAP_STANDARD_DEFINE_HEAP_LOAD_FROM(UINT64,  INT32)
+          case bin::instruction::eI64Load32U        : WATAP_STANDARD_DEFINE_HEAP_LOAD_FROM(UINT64, UINT32)
+
+          case bin::instruction::eI32Store          :
+          case bin::instruction::eF32Store          :
+             WATAP_STANDARD_DEFINE_HEAP_STORE_TO(UINT32, UINT32)
+
+          case bin::instruction::eI64Store          :
+          case bin::instruction::eF64Store          :
+             WATAP_STANDARD_DEFINE_HEAP_STORE_TO(UINT64, UINT64)
+
+          case bin::instruction::eI32Store8         : WATAP_STANDARD_DEFINE_HEAP_STORE_TO(UINT32, UINT8 )
+          case bin::instruction::eI32Store16        : WATAP_STANDARD_DEFINE_HEAP_STORE_TO(UINT32, UINT16)
+          case bin::instruction::eI64Store8         : WATAP_STANDARD_DEFINE_HEAP_STORE_TO(UINT64, UINT8 )
+          case bin::instruction::eI64Store16        : WATAP_STANDARD_DEFINE_HEAP_STORE_TO(UINT64, UINT16)
+          case bin::instruction::eI64Store32        : WATAP_STANDARD_DEFINE_HEAP_STORE_TO(UINT64, UINT32)
+
+          case bin::instruction::eMemorySize        :
+          {
+            EvaluationStack.Push<UINT32>(4)[-1] = static_cast<UINT32>(Heap.size());
+            break;
+          }
+
+          case bin::instruction::eMemoryGrow        :
+          {
+            Heap.resize(Heap.size() * 2, 0x00);
+            break;
+          }
 
           case bin::instruction::eI32Const          :
           {
@@ -464,8 +504,8 @@ namespace watap::impl::standard
           case bin::instruction::eF64Le             : WATAP_STANDARD_DEFINE_EXEC_OP_BINARY(FLOAT64, <=)
           case bin::instruction::eF64Ge             : WATAP_STANDARD_DEFINE_EXEC_OP_BINARY(FLOAT64, >=)
 
-          case bin::instruction::eI32Clz            : break;
-          case bin::instruction::eI32Ctz            : break;
+          case bin::instruction::eI32Clz            : WATAP_STANDARD_DEFINE_EXEC_FN_UNARY(UINT32, std::countl_zero<UINT32>)
+          case bin::instruction::eI32Ctz            : WATAP_STANDARD_DEFINE_EXEC_FN_UNARY(UINT32, std::countr_zero<UINT32>)
           case bin::instruction::eI32Popcnt         : WATAP_STANDARD_DEFINE_EXEC_FN_UNARY(UINT32, std::popcount<UINT32>)
 
           case bin::instruction::eI32Add            : WATAP_STANDARD_DEFINE_EXEC_OP_BINARY(UINT32, +)
@@ -484,8 +524,8 @@ namespace watap::impl::standard
           case bin::instruction::eI32Rotl           : WATAP_STANDARD_DEFINE_EXEC_FN_BINARY(UINT32, WATAP_STANDARD_ROT_FUNCTION_WRAPPER(std::rotl))
           case bin::instruction::eI32Rotr           : WATAP_STANDARD_DEFINE_EXEC_FN_BINARY(UINT32, WATAP_STANDARD_ROT_FUNCTION_WRAPPER(std::rotr))
 
-          case bin::instruction::eI64Clz            : break;
-          case bin::instruction::eI64Ctz            : break;
+          case bin::instruction::eI64Clz            : WATAP_STANDARD_DEFINE_EXEC_FN_UNARY(UINT64, std::countl_zero<UINT64>)
+          case bin::instruction::eI64Ctz            : WATAP_STANDARD_DEFINE_EXEC_FN_UNARY(UINT64, std::countr_zero<UINT64>)
           case bin::instruction::eI64Popcnt         : WATAP_STANDARD_DEFINE_EXEC_FN_UNARY(UINT64, std::popcount<UINT64>)
 
           case bin::instruction::eI64Add            : WATAP_STANDARD_DEFINE_EXEC_OP_BINARY(UINT64, +)
@@ -561,17 +601,18 @@ namespace watap::impl::standard
           case bin::instruction::eF32ReinterpretI32 : break; // That's all
           case bin::instruction::eF64ReinterpretI64 : break; // That's all
 
-          case bin::instruction::eI32Extend8S       : break;
-          case bin::instruction::eI32Extend16S      : break;
-          case bin::instruction::eI64Extend8S       : break;
-          case bin::instruction::eI64Extend16S      : break;
-          case bin::instruction::eI64Extend32S      : break;
+          case bin::instruction::eI32Extend8S       : WATAP_STANDARD_DEFINE_I_EXTEND(INT32, INT8 )
+          case bin::instruction::eI32Extend16S      : WATAP_STANDARD_DEFINE_I_EXTEND(INT32, INT16)
+          case bin::instruction::eI64Extend8S       : WATAP_STANDARD_DEFINE_I_EXTEND(INT64, INT8 )
+          case bin::instruction::eI64Extend16S      : WATAP_STANDARD_DEFINE_I_EXTEND(INT64, INT16)
+          case bin::instruction::eI64Extend32S      : WATAP_STANDARD_DEFINE_I_EXTEND(INT64, INT32)
 
           case bin::instruction::eRefNull           :
             *EvaluationStack.Push<UINT32>(4) = 0;
             break;
 
           case bin::instruction::eRefIsNull         : WATAP_STANDARD_DEFINE_EXEC_FN_BINARY(UINT32, 0 ==)
+
           case bin::instruction::eRefFunc           :
           {
             auto [FunctionIndex, Offset] = leb128::DecodeUnsigned(InstructionPointer);
@@ -581,10 +622,11 @@ namespace watap::impl::standard
           }
 
           case bin::instruction::eSystem            :
-            Trap();
+            Trap(); // TODO TC4 WASM
             break;
+
           case bin::instruction::eVector            :
-            Trap(); // No SIMD Extension support
+            Trap(); // TODO TC4 WASM SIMD Add support
             break;
 
           default                                   : break;

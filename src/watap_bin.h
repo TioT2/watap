@@ -332,7 +332,7 @@ namespace watap::bin
   /* Vector instructions */
   enum class vector_instruction : UINT8
   {
-    // TODO TC4 Add V128 instruction set support
+    // TODO TC4 WASM Add V128 instruction set support
   }; /* End of 'vector_instruction' enumeration */
 
   /* System instructions */
