@@ -43,6 +43,13 @@
 /* Integer extend generation macro definition */
 #define WATAP_STANDARD_DEFINE_I_EXTEND(BASE, SUB) { BASE *P = EvaluationStack.Get<BASE>() - 1; *P = static_cast<BASE>(*reinterpret_cast<SUB *>(P)); break; }
 
+/* Heap loading with builtin conversion implementaion function */
+#define WATAP_STANDARD_DEFINE_CAST(FROM, TO)                                                             \
+{                                                                                                        \
+  FROM P = *EvaluationStack.Pop<FROM>(sizeof(FROM));                                                     \
+  EvaluationStack.Push<TO>(sizeof(TO))[-1] = static_cast<TO>(P);                                         \
+  break;                                                                                                 \
+}
 
 /* Project namespace // WASM Namespace // Implementation namesapce // Standard (multiplatform) implementation namespace */
 namespace watap::impl::standard
@@ -61,6 +68,7 @@ namespace watap::impl::standard
       bin::global_type Variable; // Imported variable
     };
 
+    /* Import info constructor */
     import_info( VOID ) : ImportType(bin::import_export_type::eFunction), Function(0)
     {
 
@@ -208,6 +216,13 @@ namespace watap::impl::standard
     {
       Current = Begin;
     } /* End of 'Drop' function */
+
+    /* Local stack destructor. */
+    ~local_stack( VOID )
+    {
+      // Clear stack
+      std::free(Begin);
+    } /* End of '~local_stack' function */
   }; /* End of 'local_stack' structure */
 
   /* Runtime implementation */
@@ -321,9 +336,18 @@ namespace watap::impl::standard
           case bin::instruction::eNop               :
             break;
 
-          case bin::instruction::eBlock             : break;
+          case bin::instruction::eBlock             :
+          {
+
+            break;
+          }
+
           case bin::instruction::eLoop              : break;
-          case bin::instruction::eIf                : break;
+          case bin::instruction::eIf                :
+          {
+
+            break;
+          }
           case bin::instruction::eElse              : break;
           case bin::instruction::eExpressionEnd     : break;
           case bin::instruction::eBr                : break;
@@ -574,27 +598,31 @@ namespace watap::impl::standard
           case bin::instruction::eF64Max            : WATAP_STANDARD_DEFINE_EXEC_FN_BINARY(FLOAT64, std::min)
           case bin::instruction::eF64CopySign       : WATAP_STANDARD_DEFINE_EXEC_FN_BINARY(FLOAT64, std::max)
 
-          case bin::instruction::eI32WrapI64        : break;
-          case bin::instruction::eI32TruncF32S      : break;
-          case bin::instruction::eI32TruncF32U      : break;
-          case bin::instruction::eI32TruncF64S      : break;
-          case bin::instruction::eI32TruncF64U      : break;
-          case bin::instruction::eI64ExtendI32S     : break;
-          case bin::instruction::eI64ExtendI32U     : break;
-          case bin::instruction::eI64TruncF32S      : break;
-          case bin::instruction::eI64TruncF32U      : break;
-          case bin::instruction::eI64TruncF64S      : break;
-          case bin::instruction::eI64TruncF64U      : break;
-          case bin::instruction::eF32ConvertI32S    : break;
-          case bin::instruction::eF32ConvertI32U    : break;
-          case bin::instruction::eF32ConvertI64S    : break;
-          case bin::instruction::eF32ConvertI64U    : break;
-          case bin::instruction::eF32DemoteF64      : break;
-          case bin::instruction::eF64ConvertI32S    : break;
-          case bin::instruction::eF64ConvertI32U    : break;
-          case bin::instruction::eF64ConvertI64S    : break;
-          case bin::instruction::eF64ConvertI64U    : break;
-          case bin::instruction::eF64PromoteF32     : break;
+          case bin::instruction::eI32WrapI64        : WATAP_STANDARD_DEFINE_CAST( UINT32,  UINT64)
+
+          case bin::instruction::eI32TruncF32S      : WATAP_STANDARD_DEFINE_CAST(FLOAT32,   INT32)
+          case bin::instruction::eI32TruncF32U      : WATAP_STANDARD_DEFINE_CAST(FLOAT32,  UINT32)
+          case bin::instruction::eI32TruncF64S      : WATAP_STANDARD_DEFINE_CAST(FLOAT64,   INT32)
+          case bin::instruction::eI32TruncF64U      : WATAP_STANDARD_DEFINE_CAST(FLOAT64,  UINT32)
+
+          case bin::instruction::eI64ExtendI32S     : WATAP_STANDARD_DEFINE_CAST(  INT32,   INT64)
+          case bin::instruction::eI64ExtendI32U     : WATAP_STANDARD_DEFINE_CAST( UINT32,  UINT64)
+          case bin::instruction::eI64TruncF32S      : WATAP_STANDARD_DEFINE_CAST(FLOAT32,   INT64)
+          case bin::instruction::eI64TruncF32U      : WATAP_STANDARD_DEFINE_CAST(FLOAT32,  UINT64)
+          case bin::instruction::eI64TruncF64S      : WATAP_STANDARD_DEFINE_CAST(FLOAT64,   INT64)
+          case bin::instruction::eI64TruncF64U      : WATAP_STANDARD_DEFINE_CAST(FLOAT64,  UINT64)
+
+          case bin::instruction::eF32ConvertI32S    : WATAP_STANDARD_DEFINE_CAST(  INT32, FLOAT32)
+          case bin::instruction::eF32ConvertI32U    : WATAP_STANDARD_DEFINE_CAST( UINT32, FLOAT32)
+          case bin::instruction::eF32ConvertI64S    : WATAP_STANDARD_DEFINE_CAST(  INT64, FLOAT32)
+          case bin::instruction::eF32ConvertI64U    : WATAP_STANDARD_DEFINE_CAST( UINT64, FLOAT32)
+          case bin::instruction::eF32DemoteF64      : WATAP_STANDARD_DEFINE_CAST(FLOAT64, FLOAT32)
+
+          case bin::instruction::eF64ConvertI32S    : WATAP_STANDARD_DEFINE_CAST(  INT32, FLOAT64)
+          case bin::instruction::eF64ConvertI32U    : WATAP_STANDARD_DEFINE_CAST( UINT32, FLOAT64)
+          case bin::instruction::eF64ConvertI64S    : WATAP_STANDARD_DEFINE_CAST(  INT64, FLOAT64)
+          case bin::instruction::eF64ConvertI64U    : WATAP_STANDARD_DEFINE_CAST( UINT64, FLOAT64)
+          case bin::instruction::eF64PromoteF32     : WATAP_STANDARD_DEFINE_CAST(FLOAT32, FLOAT64)
 
           case bin::instruction::eI32ReinterpretF32 : break; // That's all
           case bin::instruction::eI64ReinterpretF64 : break; // That's all

@@ -35,7 +35,7 @@ namespace watap::impl::standard
      */ 
     import_table * CreateImportTable( const import_table_info &Info )
     {
-      return nullptr;
+      throw std::runtime_error("Import table create functions aren't implemented yet");
     } /* End of 'CreateImportTable' function */
 
     /* Import table destroy function.
@@ -46,6 +46,7 @@ namespace watap::impl::standard
      */ 
     VOID DestroyImportTable( import_table *ImportTable )
     {
+      throw std::runtime_error("Import table create functions aren't implemented yet");
     } /* End of 'DestroyImportTable' function */
 
     /* Runtime create function.

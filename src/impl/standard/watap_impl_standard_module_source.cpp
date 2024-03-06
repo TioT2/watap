@@ -1,6 +1,28 @@
 #define WATAP_IMPL_STANDARD
 #include "watap_impl_standard_interface.h"
 
+#define WATAP_STANDARD_COMPILE_TYPE_VALIDATE(EXPECTED)         \
+  {                                                            \
+    if (TypeStack.empty())                                     \
+      return compile_status::eNoOperands;                      \
+    if (TypeStack.top() != (EXPECTED))                         \
+      return compile_status::eInvalidOperandType;              \
+    TypeStack.pop();                                           \
+  }
+
+#define WATAP_STANDARD_COMPILE_BINARY_OP_VALIDATE(EXPECTED_LHS, EXPECTED_RHS, RESULT) \
+  {                                                                                   \
+    WATAP_STANDARD_COMPILE_TYPE_VALIDATE(EXPECTED_LHS)                                \
+    WATAP_STANDARD_COMPILE_TYPE_VALIDATE(EXPECTED_RHS)                                \
+    TypeStack.push(RESULT);                                                           \
+  }
+
+#define WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(EXPECTED, RESULT) \
+  {                                                                \
+    WATAP_STANDARD_COMPILE_TYPE_VALIDATE(EXPECTED)                 \
+    TypeStack.push(RESULT);                                        \
+  }
+
 namespace watap::impl::standard
 {
   std::optional<UINT32> ParseUint( binary_stream &Stream )
@@ -128,6 +150,11 @@ namespace watap::impl::standard
     return Result;
   } /* End of 'ParseImport' function */
 
+  class instruction_decoder
+  {
+  public:
+  };  /* End of 'code' class */
+
   /* Module data by sections splitting function.
    * ARGUMENTS:
    *   - module data:
@@ -188,6 +215,375 @@ namespace watap::impl::standard
     return std::move(Sections);
   } /* End of 'ParseSections' function */
 
+  /* Function compilation status */
+  enum class compile_status
+  {
+    eOk,                       // Ok
+    eNoOperands,               // Error on stack (go under zero)
+    eInvalidOperandType,       // Invalid operand type
+    eExtensionNotPresent,      // Extension not present (e.g. vector extension, that already have own )
+    eInvalidCallParemeters,    // Invalid call parameters
+    eUnknownNullReferenceType, // opRefNull argument invalid type
+  }; /* End of 'instruction_parsing_status' enumeration */
+
+  /* Function descriptor type */
+  struct function_header
+  {
+    std::vector<bin::value_type> Locals;       // Local variable set
+    UINT32 ArgumentCount;                      // Count of locals initially consumed from stack as arguments
+    std::optional<bin::value_type> ReturnType; // Local variable set
+
+    UINT32 CodeBeginOffset;                    // Function code offset in code
+    UINT32 CodeEndOffset;                      // Code end offset
+  }; /* End of 'function_header' structure */
+
+  /* Compilation result representation structure */
+  struct compile_result
+  {
+    compile_status Status;      // Compilation status
+    std::vector<BYTE> Bytecode; // TAP Bytecode
+  }; /* End of 'compile_result' structure */
+
+  /* TODO TC4 WASM COMPILER
+   * ADD call semantics validation
+   * ADD Type validation
+   * ADD Integer decoding
+   */
+
+  /* Function instructions parsing function.
+   * ARGUMENTS:
+   *   - function signature list:
+   *       function &Function:
+   *   - raw wasm instructions:
+   *       std::span<const BYTE> Instructions;
+   */
+  compile_status CompileCode( std::span<const function_signature> SignatureList, std::span<const BYTE> Instructions )
+  {
+    const BYTE *InstructionPointer = Instructions.data();
+    const BYTE *InstructionEnd = InstructionPointer + Instructions.size();
+    std::vector<BYTE> OutInstructions;
+
+    // Current top value
+    std::stack<bin::value_type> TypeStack;
+    BOOL Interrupted = FALSE;
+
+    while (InstructionPointer < InstructionEnd)
+    {
+      bin::instruction Instruction = static_cast<bin::instruction>(*InstructionPointer);
+
+      switch (Instruction)
+      {
+        case bin::instruction::eUnreachable        :
+          break;
+
+        case bin::instruction::eNop                :
+          break;
+
+        case bin::instruction::eBlock              :
+          break;
+
+        case bin::instruction::eLoop               :
+        case bin::instruction::eIf                 :
+        case bin::instruction::eElse               :
+        case bin::instruction::eExpressionEnd      :
+        case bin::instruction::eBr                 :
+        case bin::instruction::eBrIf               :
+        case bin::instruction::eReturn             :
+        case bin::instruction::eBrTable            :
+        case bin::instruction::eCall               :
+        case bin::instruction::eCallIndirect       :
+
+        case bin::instruction::eDrop               :
+        case bin::instruction::eSelect             :
+        case bin::instruction::eSelectTyped        :
+
+        case bin::instruction::eLocalGet           :
+        case bin::instruction::eLocalSet           :
+        case bin::instruction::eLocalTee           :
+        case bin::instruction::eGlobalGet          :
+        case bin::instruction::eGlobalSet          :
+
+        case bin::instruction::eTableGet           :
+        case bin::instruction::eTableSet           :
+
+        case bin::instruction::eI32Load            : TypeStack.push(bin::value_type::eI32); break;
+        case bin::instruction::eI64Load            : TypeStack.push(bin::value_type::eI64); break;
+        case bin::instruction::eF32Load            : TypeStack.push(bin::value_type::eF32); break;
+        case bin::instruction::eF64Load            : TypeStack.push(bin::value_type::eF64); break;
+
+        case bin::instruction::eI32Load8S          : TypeStack.push(bin::value_type::eI32); break;
+        case bin::instruction::eI32Load8U          : TypeStack.push(bin::value_type::eI32); break;
+        case bin::instruction::eI32Load16S         : TypeStack.push(bin::value_type::eI32); break;
+        case bin::instruction::eI32Load16U         : TypeStack.push(bin::value_type::eI32); break;
+
+        case bin::instruction::eI64Load8S          : TypeStack.push(bin::value_type::eI64); break;
+        case bin::instruction::eI64Load8U          : TypeStack.push(bin::value_type::eI64); break;
+        case bin::instruction::eI64Load16S         : TypeStack.push(bin::value_type::eI64); break;
+        case bin::instruction::eI64Load16U         : TypeStack.push(bin::value_type::eI64); break;
+        case bin::instruction::eI64Load32S         : TypeStack.push(bin::value_type::eI64); break;
+        case bin::instruction::eI64Load32U         : TypeStack.push(bin::value_type::eI64); break;
+
+        case bin::instruction::eI32Store           : WATAP_STANDARD_COMPILE_TYPE_VALIDATE(bin::value_type::eI32) break;
+        case bin::instruction::eI64Store           : WATAP_STANDARD_COMPILE_TYPE_VALIDATE(bin::value_type::eI64) break;
+        case bin::instruction::eF32Store           : WATAP_STANDARD_COMPILE_TYPE_VALIDATE(bin::value_type::eF32) break;
+        case bin::instruction::eF64Store           : WATAP_STANDARD_COMPILE_TYPE_VALIDATE(bin::value_type::eF64) break;
+
+        case bin::instruction::eI32Store8          :
+        case bin::instruction::eI32Store16         :
+          WATAP_STANDARD_COMPILE_TYPE_VALIDATE(bin::value_type::eI32)
+          break;
+
+        case bin::instruction::eI64Store8          :
+        case bin::instruction::eI64Store16         :
+        case bin::instruction::eI64Store32         :
+          WATAP_STANDARD_COMPILE_TYPE_VALIDATE(bin::value_type::eI64)
+          break;
+
+        case bin::instruction::eMemorySize         : break;
+        case bin::instruction::eMemoryGrow         : break;
+
+        case bin::instruction::eI32Const           : WATAP_STANDARD_COMPILE_TYPE_VALIDATE(bin::value_type::eI32) break;
+        case bin::instruction::eI64Const           : WATAP_STANDARD_COMPILE_TYPE_VALIDATE(bin::value_type::eI64) break;
+        case bin::instruction::eF32Const           : WATAP_STANDARD_COMPILE_TYPE_VALIDATE(bin::value_type::eF32) break;
+        case bin::instruction::eF64Const           : WATAP_STANDARD_COMPILE_TYPE_VALIDATE(bin::value_type::eF64) break;
+
+        case bin::instruction::eI32Eqz             :
+          WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(bin::value_type::eI32, bin::value_type::eI32)
+
+        case bin::instruction::eI32Eq              :
+        case bin::instruction::eI32Ne              :
+        case bin::instruction::eI32LtS             :
+        case bin::instruction::eI32LtU             :
+        case bin::instruction::eI32GtS             :
+        case bin::instruction::eI32GtU             :
+        case bin::instruction::eI32LeS             :
+        case bin::instruction::eI32LeU             :
+        case bin::instruction::eI32GeS             :
+        case bin::instruction::eI32GeU             :
+          WATAP_STANDARD_COMPILE_BINARY_OP_VALIDATE(bin::value_type::eI32, bin::value_type::eI32, bin::value_type::eI32)
+          break;
+
+        case bin::instruction::eI64Eqz             :
+          WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(bin::value_type::eI64, bin::value_type::eI32)
+          break;
+
+        case bin::instruction::eI64Eq              :
+        case bin::instruction::eI64Ne              :
+        case bin::instruction::eI64LtS             :
+        case bin::instruction::eI64LtU             :
+        case bin::instruction::eI64GtS             :
+        case bin::instruction::eI64GtU             :
+        case bin::instruction::eI64LeS             :
+        case bin::instruction::eI64LeU             :
+        case bin::instruction::eI64GeS             :
+        case bin::instruction::eI64GeU             :
+          WATAP_STANDARD_COMPILE_BINARY_OP_VALIDATE(bin::value_type::eI64, bin::value_type::eI64, bin::value_type::eI32)
+          break;
+
+        case bin::instruction::eF32Eq              :
+        case bin::instruction::eF32Ne              :
+        case bin::instruction::eF32Lt              :
+        case bin::instruction::eF32Gt              :
+        case bin::instruction::eF32Le              :
+        case bin::instruction::eF32Ge              :
+          WATAP_STANDARD_COMPILE_BINARY_OP_VALIDATE(bin::value_type::eF32, bin::value_type::eF32, bin::value_type::eI32)
+          break;
+
+        case bin::instruction::eF64Eq              :
+        case bin::instruction::eF64Ne              :
+        case bin::instruction::eF64Lt              :
+        case bin::instruction::eF64Gt              :
+        case bin::instruction::eF64Le              :
+        case bin::instruction::eF64Ge              :
+          WATAP_STANDARD_COMPILE_BINARY_OP_VALIDATE(bin::value_type::eF64, bin::value_type::eF64, bin::value_type::eI32)
+          break;
+
+        case bin::instruction::eI32Clz             :
+        case bin::instruction::eI32Ctz             :
+        case bin::instruction::eI32Popcnt          :
+          WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(bin::value_type::eI32, bin::value_type::eI32)
+          break;
+
+        case bin::instruction::eI32Add             :
+        case bin::instruction::eI32Sub             :
+        case bin::instruction::eI32Mul             :
+        case bin::instruction::eI32DivS            :
+        case bin::instruction::eI32DivU            :
+        case bin::instruction::eI32RemS            :
+        case bin::instruction::eI32RemU            :
+        case bin::instruction::eI32And             :
+        case bin::instruction::eI32Or              :
+        case bin::instruction::eI32Xor             :
+        case bin::instruction::eI32Shl             :
+        case bin::instruction::eI32ShrS            :
+        case bin::instruction::eI32ShrU            :
+        case bin::instruction::eI32Rotl            :
+        case bin::instruction::eI32Rotr            :
+          WATAP_STANDARD_COMPILE_BINARY_OP_VALIDATE(bin::value_type::eI64, bin::value_type::eI64, bin::value_type::eI64)
+          break;
+
+        case bin::instruction::eI64Clz             :
+        case bin::instruction::eI64Ctz             :
+        case bin::instruction::eI64Popcnt          :
+          WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(bin::value_type::eI64, bin::value_type::eI64)
+          break;
+
+        case bin::instruction::eI64Add             :
+        case bin::instruction::eI64Sub             :
+        case bin::instruction::eI64Mul             :
+        case bin::instruction::eI64DivS            :
+        case bin::instruction::eI64DivU            :
+        case bin::instruction::eI64RemS            :
+        case bin::instruction::eI64RemU            :
+        case bin::instruction::eI64And             :
+        case bin::instruction::eI64Or              :
+        case bin::instruction::eI64Xor             :
+        case bin::instruction::eI64Shl             :
+        case bin::instruction::eI64ShrS            :
+        case bin::instruction::eI64ShrU            :
+        case bin::instruction::eI64Rotl            :
+        case bin::instruction::eI64Rotr            :
+          WATAP_STANDARD_COMPILE_BINARY_OP_VALIDATE(bin::value_type::eI64, bin::value_type::eI64, bin::value_type::eI64)
+          break;
+
+        case bin::instruction::eF32Abs             :
+        case bin::instruction::eF32Neg             :
+        case bin::instruction::eF32Ceil            :
+        case bin::instruction::eF32Floor           :
+        case bin::instruction::eF32Trunc           :
+        case bin::instruction::eF32Nearest         :
+        case bin::instruction::eF32Sqrt            :
+          WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(bin::value_type::eF32, bin::value_type::eF32)
+          break;
+
+        case bin::instruction::eF32Add             :
+        case bin::instruction::eF32Sub             :
+        case bin::instruction::eF32Mul             :
+        case bin::instruction::eF32Div             :
+        case bin::instruction::eF32Min             :
+        case bin::instruction::eF32Max             :
+        case bin::instruction::eF32CopySign        :
+          WATAP_STANDARD_COMPILE_BINARY_OP_VALIDATE(bin::value_type::eF32, bin::value_type::eF32, bin::value_type::eF32)
+          break;
+
+        case bin::instruction::eF64Abs             :
+        case bin::instruction::eF64Neg             :
+        case bin::instruction::eF64Ceil            :
+        case bin::instruction::eF64Floor           :
+        case bin::instruction::eF64Trunc           :
+        case bin::instruction::eF64Nearest         :
+        case bin::instruction::eF64Sqrt            :
+          WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(bin::value_type::eF32, bin::value_type::eF32)
+          break;
+
+        case bin::instruction::eF64Add             :
+        case bin::instruction::eF64Sub             :
+        case bin::instruction::eF64Mul             :
+        case bin::instruction::eF64Div             :
+        case bin::instruction::eF64Min             :
+        case bin::instruction::eF64Max             :
+        case bin::instruction::eF64CopySign        :
+          WATAP_STANDARD_COMPILE_BINARY_OP_VALIDATE(bin::value_type::eF32, bin::value_type::eF32, bin::value_type::eF32)
+          break;
+
+        case bin::instruction::eI32WrapI64         : WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(bin::value_type::eI32, bin::value_type::eI64) break;
+
+        case bin::instruction::eI32TruncF32S       : WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(bin::value_type::eF32, bin::value_type::eI32) break;
+        case bin::instruction::eI32TruncF32U       : WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(bin::value_type::eF32, bin::value_type::eI32) break;
+        case bin::instruction::eI32TruncF64S       : WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(bin::value_type::eF64, bin::value_type::eI32) break;
+        case bin::instruction::eI32TruncF64U       : WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(bin::value_type::eF64, bin::value_type::eI32) break;
+
+        case bin::instruction::eI64ExtendI32S      : WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(bin::value_type::eI32, bin::value_type::eI64) break;
+        case bin::instruction::eI64ExtendI32U      : WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(bin::value_type::eI32, bin::value_type::eI64) break;
+        case bin::instruction::eI64TruncF32S       : WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(bin::value_type::eF32, bin::value_type::eI64) break;
+        case bin::instruction::eI64TruncF32U       : WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(bin::value_type::eF32, bin::value_type::eI64) break;
+        case bin::instruction::eI64TruncF64S       : WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(bin::value_type::eF64, bin::value_type::eI64) break;
+        case bin::instruction::eI64TruncF64U       : WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(bin::value_type::eF64, bin::value_type::eI64) break;
+
+        case bin::instruction::eF32ConvertI32S     : WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(bin::value_type::eI32, bin::value_type::eF32) break;
+        case bin::instruction::eF32ConvertI32U     : WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(bin::value_type::eI32, bin::value_type::eF32) break;
+        case bin::instruction::eF32ConvertI64S     : WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(bin::value_type::eI64, bin::value_type::eF32) break;
+        case bin::instruction::eF32ConvertI64U     : WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(bin::value_type::eI64, bin::value_type::eF32) break;
+        case bin::instruction::eF32DemoteF64       : WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(bin::value_type::eF64, bin::value_type::eF32) break;
+
+        case bin::instruction::eF64ConvertI32S     : WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(bin::value_type::eI32, bin::value_type::eF64) break;
+        case bin::instruction::eF64ConvertI32U     : WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(bin::value_type::eI32, bin::value_type::eF64) break;
+        case bin::instruction::eF64ConvertI64S     : WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(bin::value_type::eI64, bin::value_type::eF64) break;
+        case bin::instruction::eF64ConvertI64U     : WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(bin::value_type::eI64, bin::value_type::eF64) break;
+        case bin::instruction::eF64PromoteF32      : WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(bin::value_type::eF32, bin::value_type::eF64) break;
+
+        case bin::instruction::eI32ReinterpretF32  : WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(bin::value_type::eF32, bin::value_type::eI32) break;
+        case bin::instruction::eI64ReinterpretF64  : WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(bin::value_type::eF64, bin::value_type::eI64) break;
+        case bin::instruction::eF32ReinterpretI32  : WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(bin::value_type::eI32, bin::value_type::eF32) break;
+        case bin::instruction::eF64ReinterpretI64  : WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(bin::value_type::eI64, bin::value_type::eF64) break;
+
+        case bin::instruction::eI32Extend8S        :
+        case bin::instruction::eI32Extend16S       :
+          WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(bin::value_type::eI32, bin::value_type::eI32)
+          break;
+
+        case bin::instruction::eI64Extend8S        :
+        case bin::instruction::eI64Extend16S       :
+        case bin::instruction::eI64Extend32S       :
+          WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(bin::value_type::eI64, bin::value_type::eI64)
+          break;
+
+        case bin::instruction::eRefNull           :
+        {
+          const UINT8 Null[] {0, 0, 0, 0};
+          auto [Type, Offset] = leb128::DecodeUnsigned(InstructionPointer);
+
+          switch ((bin::reference_type)Type)
+          {
+          case bin::reference_type::eExternRef:
+          case bin::reference_type::eFuncRef:
+            TypeStack.push(bin::value_type::eExternRef);
+
+            InstructionPointer += Offset;
+
+            OutInstructions.push_back(static_cast<BYTE>(bin::instruction::eI32Const));
+            OutInstructions.insert(OutInstructions.end(), Null, Null + 4);
+            break;
+
+          default:
+            return compile_status::eUnknownNullReferenceType;
+          }
+        }
+
+        case bin::instruction::eRefIsNull         :
+          WATAP_STANDARD_COMPILE_UNARY_OP_VALIDATE(bin::value_type::eI64, bin::value_type::eI32)
+          break;
+
+        case bin::instruction::eRefFunc           :
+        {
+          const UINT8 Null[] {0, 0, 0, 0};
+          auto [Type, Offset] = leb128::DecodeUnsigned(InstructionPointer);
+
+          switch ((bin::reference_type)Type)
+          {
+          case bin::reference_type::eExternRef:
+          case bin::reference_type::eFuncRef:
+            TypeStack.push(bin::value_type::eExternRef);
+
+            InstructionPointer += Offset;
+
+            OutInstructions.push_back(static_cast<BYTE>(bin::instruction::eI32Const));
+            OutInstructions.insert(OutInstructions.end(), Null, Null + 4);
+            break;
+
+          default:
+            return compile_status::eUnknownNullReferenceType;
+          }
+        }
+
+        case bin::instruction::eSystem            :
+        case bin::instruction::eVector            :
+          break;
+      }
+    }
+
+    return compile_status::eOk;
+  } /* End of 'ExpandFnInstructions' function */
 
   /* Module source create function.
    * ARGUMENTS:
@@ -235,7 +631,7 @@ namespace watap::impl::standard
         WATAP_CALL_OR_RETURN(DefinedFunctionSignatures.push_back, ParseUint(Stream), nullptr);
     }
 
-    /* Functions */
+    /* Code section */
     if (auto SectionIter = Sections.find(bin::section_id::eCode); SectionIter != Sections.end())
     {
       binary_stream Stream {SectionIter->second};
@@ -263,7 +659,7 @@ namespace watap::impl::standard
         {
           UINT32 BatchSize = 0;
           WATAP_SET_OR_RETURN(BatchSize, ParseUint(Stream), nullptr);
-          
+
           bin::value_type ValueType = bin::value_type::eI32;
           WATAP_SET_OR_RETURN(ValueType, Stream.Get<bin::value_type>(), nullptr);
 
