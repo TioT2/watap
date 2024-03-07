@@ -7,18 +7,31 @@
 namespace watap
 {
   /* Binary data walker */
-  class binary_stream
+  class binary_input_stream
   {
-    const UINT8 *const Begin;
-    const UINT8 *Ptr;
-    SIZE_T DataSize;
+    const UINT8 *const Begin; // Data begin pointer
+    const UINT8 *Ptr;         // Pointer
+    SIZE_T DataSize;          // Data size
   public:
-    binary_stream( std::span<const UINT8> Data ) : Begin(Data.data()), Ptr(Data.data()), DataSize(Data.size_bytes())
+
+    /* Stream constructor.
+     * ARGUMENTS:
+     *   - data span:
+     *       std::span<const BYTE> Data;
+     */
+    constexpr binary_input_stream( std::span<const UINT8> Data ) noexcept : Begin(Data.data()), Ptr(Data.data()), DataSize(Data.size_bytes())
     {
 
-    }
+    } /* End of 'binary_stream' function */
 
-    template <typename type>
+    /* Value getting function.
+     * ARGUMENTS:
+     *   - count of values of type to get:
+     *       SIZE_T Count = 1;
+     * RETURNS:
+     *   (const type *) Data pointer;
+     */
+    template <typename type> requires std::is_trivially_copyable_v<type>
       constexpr const type * Get( SIZE_T Count = 1 ) noexcept
       {
         auto Size = sizeof(type) * Count;
@@ -29,32 +42,61 @@ namespace watap
           return nullptr;
         }
         return reinterpret_cast<const type *>((Ptr += Size) - Size);
-      }
+      } /* End of 'Get' function */
 
+    /* Some data skipping function.
+     * ARGUMENTS:
+     *   - count of values to skip:
+     *       SIZE_T Count = 1;
+     * RETURNS: None.
+     */
     template <typename type = UINT8>
       constexpr VOID Skip( SIZE_T Count = 1 ) noexcept
       {
         Ptr += sizeof(type) * Count;
-      }
-
-    template <typename type>
-      constexpr const type * operator()( VOID ) noexcept
-      {
-        if (Ptr - Begin + sizeof(type) >= DataSize)
-          return (Ptr = Begin + DataSize), nullptr;
-        return reinterpret_cast<const type *>((Ptr += sizeof(type)) - sizeof(type));
-      }
+      } /* End of 'Skip' function */
 
     constexpr const UINT8 * CurrentPtr( VOID ) const noexcept
     {
       return Ptr;
-    }
+    } /* End of 'CurrentPtr' function */
 
+    /* Valid checking function.
+     * ARGUMENTS: None.
+     * RETURNS:
+     *   (BOOL) TRUE if valid, FALSE otherwise;
+     */
     constexpr operator BOOL( VOID ) const noexcept
     {
       return Ptr < Begin + DataSize;
-    }
-  }; /* End of 'co_binary_walker' structure */
+    } /* End of 'BOOL' operator */
+  }; /* End of 'binary_input_stream' class*/
+
+  /* Binary output stream representation structure */
+  class binary_output_stream
+  {
+    std::vector<BYTE> Dst; // Destination
+  public:
+    /* Writing function.
+     * ARGUMENTS: None.
+     * RETURNS: None.
+     */
+    template <typename type> requires std::is_trivially_copyable_v<type>
+      constexpr VOID Write( const type *Data, SIZE_T Size )
+      {
+        Dst.insert(Dst.end(), reinterpret_cast<const BYTE *>(Data), reinterpret_cast<const BYTE *>(Data + Size));
+      } /* End of 'Write' function */
+
+    /* Data flushing function.
+     * ARGUMENTS: None.
+     * RETURNS:
+     *   (std::vector<BYTE>) Flushed data.
+     */
+    constexpr std::vector<BYTE> Flush( VOID ) noexcept
+    {
+      return std::move(Dst);
+    } /* End of 'Flush' function */
+  }; /* End of 'binary_output_stream' class */
 
   /* LEB128 worker utility namespace */
   namespace leb128
