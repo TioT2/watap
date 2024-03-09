@@ -82,7 +82,7 @@ namespace watap
      * RETURNS: None.
      */
     template <typename type> requires std::is_trivially_copyable_v<type>
-      constexpr VOID Write( const type *Data, SIZE_T Size )
+      constexpr VOID Write( const type *Data, SIZE_T Size = 1 )
       {
         Dst.insert(Dst.end(), reinterpret_cast<const BYTE *>(Data), reinterpret_cast<const BYTE *>(Data + Size));
       } /* End of 'Write' function */

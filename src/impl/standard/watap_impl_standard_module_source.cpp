@@ -263,6 +263,14 @@ namespace watap::impl::standard
    * ADD Integer decoding
    */
 
+  /* WASM Compilation representation structure */
+  struct compilation_info
+  {
+    std::span<const function_signature> Signatures;   // Signature list
+    std::span<const UINT32> FunctionSignatureIndices; // Function signature list
+    std::span<const BYTE> Instructions;               // .Code section
+  }; /* End of 'compilation_info' structure */
+
   /* Function instructions parsing function.
    * ARGUMENTS:
    *   - function signature list:
