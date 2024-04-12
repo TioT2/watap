@@ -54,7 +54,7 @@ namespace watap
   /* Module source descrpitor */
   using module_source_info = std::variant<
     std::span<const UINT8>, // WASM (Binary representation)
-    std::string_view       // WAT  (Text representation)
+    std::string_view        // WAT  (Text representation)
   >;
 
   /* Import table descriptor */

@@ -102,7 +102,6 @@ namespace watap::impl::standard
     case bin::limit_type::eMin:
       WATAP_SET_OR_RETURN(Result.Min, ParseUint(Stream), std::nullopt);
       break;
-
     }
 
     return Result;
@@ -215,130 +214,6 @@ namespace watap::impl::standard
     return std::move(Sections);
   } /* End of 'ParseSections' function */
 
-  /* Function compilation status */
-  enum class compile_status
-  {
-    eOk,                       // Ok
-    eNoOperands,               // Error on stack (go under zero)
-    eInvalidOperandType,       // Invalid operand type
-    eExtensionNotPresent,      // Extension not present (e.g. vector extension, that already have own )
-    eInvalidCallParemeters,    // Invalid call parameters
-    eUnknownNullReferenceType, // opRefNull argument invalid type
-    eUnexpectedDataEnd,        // Unexpected section data end
-  }; /* End of 'instruction_parsing_status' enumeration */
-
-  /* Function descriptor type */
-  struct function_header
-  {
-    std::vector<bin::value_type> Locals;       // Local variable set
-    UINT32 ArgumentCount;                      // Count of locals initially consumed from stack as arguments
-    std::optional<bin::value_type> ReturnType; // Local variable set
-
-    UINT32 CodeBeginOffset;                    // Function code offset in code
-    UINT32 CodeEndOffset;                      // Code end offset
-  }; /* End of 'function_header' structure */
-
-  /* Compilation result representation structure */
-  struct compile_result
-  {
-    compile_status Status;      // Compilation status
-    std::vector<BYTE> Bytecode; // TAP Bytecode
-
-    /* Compilation result constructor.
-     * ARGUMENTS:
-     *   - compilation status:
-     *       compile_status Status;
-     *   - compiled bytecode:
-     *       std::vector<BYTE> &&Bytecode {};
-     */
-    compile_result( compile_status Status, std::vector<BYTE> &&Bytecode = {} ) : Status(Status), Bytecode(std::move(Bytecode))
-    {
-
-    } /* End of 'compile_result' function */
-  }; /* End of 'compile_result' structure */
-
-  /* TODO TC4 WASM COMPILER
-   * ADD call semantics validation
-   * ADD Type validation
-   * ADD Integer decoding
-   */
-
-  /* WASM Compilation representation structure */
-  struct compilation_info
-  {
-    std::span<const function_signature> Signatures;   // Signature list
-    std::span<const UINT32> FunctionSignatureIndices; // Function signature list
-    std::span<const BYTE> Instructions;               // .Code section
-  }; /* End of 'compilation_info' structure */
-
-  /* Function instructions parsing function.
-   * ARGUMENTS:
-   *   - function signature list:
-   *       function &Function:
-   *   - raw wasm instructions:
-   *       std::span<const BYTE> Instructions;
-   * RETURNS:
-   *   (compile_result) Compilation result
-   */
-  compile_result CompileCode( std::span<const function_signature> SignatureList, std::span<const UINT32> SignatureIndices, std::span<const BYTE> Instructions )
-  {
-    binary_input_stream Stream {Instructions};
-    std::vector<BYTE> OutInstructions;
-    std::vector<function_header> FunctionHeaders;
-
-    // Current top value
-    std::stack<bin::value_type> TypeStack;
-    BOOL Interrupted = FALSE;
-
-    // Parse function count
-    UINT32 FunctionCount;
-    WATAP_SET_OR_RETURN(FunctionCount, ParseUint(Stream), compile_status::eUnexpectedDataEnd);
-
-    /* Parse instructions */
-    for (UINT32 FunctionIndex = 0; FunctionIndex < FunctionCount; FunctionIndex++)
-    {
-      const function_signature &Signature = SignatureList[SignatureIndices[FunctionIndex]];
-      function_header FunctionHeader;
-      function Function;
-
-      const BYTE *InstructionPointer = Instructions.data();
-      const BYTE *InstructionEnd = InstructionPointer + Instructions.size();
-      UINT32 CodeSize = 0;
-      WATAP_SET_OR_RETURN(CodeSize, ParseUint(Stream), compile_status::eUnexpectedDataEnd);
-
-      Function.ArgumentCount = (UINT32)Signature.ArgumentTypes.size();
-      Function.Locals = Signature.ArgumentTypes;
-      Function.ReturnType = Signature.ReturnType;
-
-      const UINT8 *FuncLocalsBegin = Stream.CurrentPtr();
-
-      UINT32 LocalBatchCount = 0;
-      WATAP_SET_OR_RETURN(LocalBatchCount, ParseUint(Stream), compile_status::eUnexpectedDataEnd);
-      while (LocalBatchCount--)
-      {
-        UINT32 BatchSize = 0;
-        WATAP_SET_OR_RETURN(BatchSize, ParseUint(Stream), compile_status::eUnexpectedDataEnd);
-
-        bin::value_type ValueType = bin::value_type::eI32;
-        WATAP_SET_OR_RETURN(ValueType, Stream.Get<bin::value_type>(), compile_status::eUnexpectedDataEnd);
-
-        while (BatchSize--)
-          Function.Locals.push_back(ValueType);
-      }
-
-      const UINT8 *FuncLocalsEnd = Stream.CurrentPtr();
-
-      Function.Instructions.resize(CodeSize - (FuncLocalsEnd - FuncLocalsBegin));
-      std::memcpy(Function.Instructions.data(), Stream.Get<UINT8>(Function.Instructions.size()), Function.Instructions.size());
-
-
-
-      // Result->Functions.push_back(std::move(Function));
-    }
-
-    return compile_result(compile_status::eOk, std::move(OutInstructions));
-  } /* End of 'ExpandFnInstructions' function */
-
   /* Module source create function.
    * ARGUMENTS:
    *   - module source descriptor:
@@ -358,8 +233,6 @@ namespace watap::impl::standard
     std::map<bin::section_id, std::span<const UINT8>> Sections;
     WATAP_SET_OR_RETURN(Sections, ParseSections(Data), nullptr);
   
-    std::vector<function_signature> FunctionSignatures;
-  
     if (auto FuncSignatureSectionIter = Sections.find(bin::section_id::eType); FuncSignatureSectionIter != Sections.end())
     {
       binary_input_stream Stream {FuncSignatureSectionIter->second};
@@ -367,12 +240,10 @@ namespace watap::impl::standard
       UINT32 FunctionSignatureCount = 0;
       WATAP_SET_OR_RETURN(FunctionSignatureCount, ParseUint(Stream), nullptr);
   
-      FunctionSignatures.reserve(FunctionSignatureCount);
+      Result->FunctionSignatures.reserve(FunctionSignatureCount);
       while (FunctionSignatureCount--)
-        WATAP_CALL_OR_RETURN(FunctionSignatures.push_back, ParseFunctionType(Stream), nullptr);
+        WATAP_CALL_OR_RETURN(Result->FunctionSignatures.push_back, ParseFunctionType(Stream), nullptr);
     }
-
-    std::vector<UINT32> DefinedFunctionSignatures;
 
     if (auto SectionIter = Sections.find(bin::section_id::eFunction); SectionIter != Sections.end())
     {
@@ -382,10 +253,10 @@ namespace watap::impl::standard
       WATAP_SET_OR_RETURN(FunctionCount, ParseUint(Stream), nullptr);
 
       while (FunctionCount--)
-        WATAP_CALL_OR_RETURN(DefinedFunctionSignatures.push_back, ParseUint(Stream), nullptr);
+        WATAP_CALL_OR_RETURN(Result->FunctionSignatureIndices.push_back, ParseUint(Stream), nullptr);
     }
 
-    /* Code section */
+    /* Code */
     if (auto SectionIter = Sections.find(bin::section_id::eCode); SectionIter != Sections.end())
     {
       binary_input_stream Stream {SectionIter->second};
@@ -395,38 +266,18 @@ namespace watap::impl::standard
 
       for (UINT32 i = 0; i < FunctionCount; i++)
       {
-        const function_signature &Signature = FunctionSignatures[DefinedFunctionSignatures[i]];
-        function Function;
+        const function_signature &Signature = Result->FunctionSignatures[Result->FunctionSignatureIndices[i]];
 
         UINT32 CodeSize = 0;
         WATAP_SET_OR_RETURN(CodeSize, ParseUint(Stream), nullptr);
 
-        Function.ArgumentCount = (UINT32)Signature.ArgumentTypes.size();
-        Function.Locals = Signature.ArgumentTypes;
-        Function.ReturnType = Signature.ReturnType;
-
-        const UINT8 *FuncLocalsBegin = Stream.CurrentPtr();
-
-        UINT32 LocalBatchCount = 0;
-        WATAP_SET_OR_RETURN(LocalBatchCount, ParseUint(Stream), nullptr);
-        while (LocalBatchCount--)
+        Result->Functions.push_back(raw_function_data
         {
-          UINT32 BatchSize = 0;
-          WATAP_SET_OR_RETURN(BatchSize, ParseUint(Stream), nullptr);
+          .SignatureIndex = Result->FunctionSignatureIndices[i],
+          .Instructions = {Stream.CurrentPtr(), Stream.CurrentPtr() + static_cast<SIZE_T>(CodeSize)},
+        });
 
-          bin::value_type ValueType = bin::value_type::eI32;
-          WATAP_SET_OR_RETURN(ValueType, Stream.Get<bin::value_type>(), nullptr);
-
-          while (BatchSize--)
-            Function.Locals.push_back(ValueType);
-        }
-
-        const UINT8 *FuncLocalsEnd = Stream.CurrentPtr();
-
-        Function.Instructions.resize(CodeSize - (FuncLocalsEnd - FuncLocalsBegin));
-        std::memcpy(Function.Instructions.data(), Stream.Get<UINT8>(Function.Instructions.size()), Function.Instructions.size());
-
-        Result->Functions.push_back(std::move(Function));
+        Stream.Skip(CodeSize);
       }
     }
 

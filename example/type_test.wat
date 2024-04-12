@@ -1,9 +1,8 @@
 (module
-  (func $sqr (param $x f32) (result f64)
-    ref.null extern
-    drop
-    local.get $x
-    f64.promote_f32
+  (func $sqr (param $x i32)
+    i64.const 30
+    i32.wrap_i64
+    local.set $x
     return
   )
 

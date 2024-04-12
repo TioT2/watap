@@ -112,7 +112,7 @@ namespace watap
  ***/
 
 /* Setting */
-#define WATAP_BRANCH(EXPRESSION, IF_TRUE, IF_FALSE) { if (auto __tmp_val = (EXPRESSION)) { IF_TRUE(*__tmp_val); } else { IF_FALSE; } } while (FALSE)
+#define WATAP_BRANCH(EXPRESSION, IF_TRUE, IF_FALSE) do { if (auto __tmp_val = (EXPRESSION)) { IF_TRUE(*__tmp_val); } else { IF_FALSE; } } while (FALSE)
 
 // Meta setter
 #define __WATAP_FN_SET_TO_HELPER(VALUE) = (VALUE)

@@ -2,3 +2,6 @@
 **.user
 out/**
 **.exe
+Release/**
+Debug/**
+x64/**
