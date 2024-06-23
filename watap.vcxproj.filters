@@ -50,10 +50,13 @@
     <ClCompile Include="src\watap_main.cpp">
       <Filter>Resource Files\Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\impl\standard\watap_impl_standard.cpp">
+    <ClCompile Include="src\impl\standard\watap_impl_standard_source.cpp">
       <Filter>Resource Files\Source Files\Implementations\Standard</Filter>
     </ClCompile>
-    <ClCompile Include="src\impl\standard\watap_impl_standard_module_source.cpp">
+    <ClCompile Include="src\impl\standard\watap_impl_standard.cpp">
+      <Filter>Resource Files\Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\impl\standard\watap_impl_standard_interface.cpp">
       <Filter>Resource Files\Source Files\Implementations\Standard</Filter>
     </ClCompile>
   </ItemGroup>

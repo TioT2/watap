@@ -1,3 +1,4 @@
+; Example pseudo-math library
 (module
   (func $f_inv_sqrt (param $x f32) (result f32)
     (f32.div

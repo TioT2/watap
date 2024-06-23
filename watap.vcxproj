@@ -30,7 +30,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\impl\standard\watap_impl_standard.cpp" />
-    <ClCompile Include="src\impl\standard\watap_impl_standard_module_source.cpp" />
+    <ClCompile Include="src\impl\standard\watap_impl_standard_interface.cpp" />
+    <ClCompile Include="src\impl\standard\watap_impl_standard_source.cpp" />
     <ClCompile Include="src\watap_main.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

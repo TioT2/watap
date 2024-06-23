@@ -11,6 +11,7 @@
 #include <format>
 #include <variant>
 #include <optional>
+#include <numeric>
 
 /* Debug memory allocation support */ 
 #if !defined(NDEBUG)
@@ -20,17 +21,25 @@
      _CrtSetDbgFlag(_CRTDBG_LEAK_CHECK_DF | _CRTDBG_CHECK_ALWAYS_DF | \
      _CRTDBG_ALLOC_MEM_DF | _CrtSetDbgFlag(_CRTDBG_REPORT_FLAG))
 
-/* class for debug memory allocation support */
-static class __Dummy
+/* Project namespace */
+namespace watap
 {
-public: 
-  /* Class constructor */
-  __Dummy( void )
+  /* Debug-only namespace, contains some utilitary things */
+  namespace __debug
   {
-    //_CrtSetBreakAlloc(281); -- use for memory leak check
-    SetDbgMemHooks(); 
-  } /* End of '__Dummy' constructor */
-} __ooppss;
+    /* class for debug memory allocation hook support */
+    static class mem_dummy
+    {
+    public: 
+      /* Class constructor */
+      mem_dummy( void )
+      {
+        //_CrtSetBreakAlloc(281); -- use for memory leak check
+        SetDbgMemHooks(); 
+      } /* End of '__Dummy' constructor */
+    } Dummy;
+  }
+}
 
 #endif /* _DEBUG */
 

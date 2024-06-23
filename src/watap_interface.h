@@ -52,7 +52,7 @@ namespace watap
   }; /* End of 'value' structure */
 
   /* Module source descrpitor */
-  using module_source_info = std::variant<
+  using source_info = std::variant<
     std::span<const UINT8>, // WASM (Binary representation)
     std::string_view        // WAT  (Text representation)
   >;
@@ -60,10 +60,11 @@ namespace watap
   /* Import table descriptor */
   struct import_table_info
   {
+
   }; /* End of 'import_table_info' structure */
 
   /* WASM Module representation structure */
-  class module_source abstract
+  class source abstract
   {
   public:
     /* Start function name getting function.
@@ -81,17 +82,17 @@ namespace watap
   }; /* End of 'import_table' structure */
 
   /* Module instance descriptor */
-  struct runtime_info
+  struct instance_info
   {
-    module_source *ModuleSource; // Actual module
+    source *ModuleSource; // Actual module
     import_table *ImportTable;   // Table of module imports
   }; /* End of 'module_instance_info' structure */
 
   /* Started module representation class */
-  class runtime abstract
+  class instance abstract
   {
   public:
-    /* Module function calling function.
+    /* Instance function calling function.
      * ARGUMENTS:
      *   - function name:
      *       std::string_view FunctionName;
@@ -154,7 +155,7 @@ namespace watap
      * RETURNS:
      *   (module_source *) Created module source pointer;
      */ 
-    virtual module_source * CreateModuleSource( const module_source_info &Info ) = 0;
+    virtual source * CreateSource( const source_info &Info ) = 0;
 
     /* Module source destroy function.
      * ARGUMENTS:
@@ -162,7 +163,7 @@ namespace watap
      *       module_source *ModuleSource;
      * RETURNS: None.
      */ 
-    virtual VOID DestroyModuleSource( module_source *ModuleSource ) = 0;
+    virtual VOID DestroySource( source *ModuleSource ) = 0;
 
     /* Import table create function.
      * ARGUMENTS:
@@ -188,7 +189,7 @@ namespace watap
      * RETURNS:
      *   (runtime *) Created import table pointer;
      */ 
-    virtual runtime * CreateRuntime( const runtime_info &Info ) = 0;
+    virtual instance * CreateInstance( const instance_info &Info ) = 0;
 
     /* Runtime destroy function.
      * ARGUMENTS:
@@ -196,7 +197,7 @@ namespace watap
      *       runtime *Runtime;
      * RETURNS: None.
      */ 
-    virtual VOID DestroyRuntime( runtime *Runtime ) = 0;
+    virtual VOID DestroyInstance( instance *Runtime ) = 0;
   }; /* End of 'interface' class */
 } /* end of 'watap' namespace */
 

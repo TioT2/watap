@@ -16,7 +16,7 @@ namespace watap::impl::standard
      * RETURNS:
      *   (module_source *) Created module source pointer;
      */ 
-    module_source * CreateModuleSource( const module_source_info &Info ) override;
+    source * CreateSource( const source_info &Info ) override;
 
     /* Module source destroy function.
      * ARGUMENTS:
@@ -24,7 +24,7 @@ namespace watap::impl::standard
      *       module_source *ModuleSource;
      * RETURNS: None.
      */ 
-    VOID DestroyModuleSource( module_source *ModuleSource ) override;
+    VOID DestroySource( source *ModuleSource ) override;
 
     /* Import table create function.
      * ARGUMENTS:
@@ -56,10 +56,10 @@ namespace watap::impl::standard
      * RETURNS:
      *   (runtime *) Created import table pointer;
      */ 
-    runtime * CreateRuntime( const runtime_info &Info )
+    instance * CreateInstance( const instance_info &Info )
     {
-      if (auto Impl = dynamic_cast<const module_source_impl *>(Info.ModuleSource))
-        return new runtime_impl(*Impl);
+      if (auto Impl = dynamic_cast<const source_impl *>(Info.ModuleSource))
+        return new instance_impl(*Impl);
       return nullptr;
     } /* End of 'CreateRuntime' function */
 
@@ -69,9 +69,9 @@ namespace watap::impl::standard
      *       runtime *Runtime;
      * RETURNS: None.
      */ 
-    VOID DestroyRuntime( runtime *Runtime )
+    VOID DestroyInstance( instance *Runtime )
     {
-      if (auto Impl = dynamic_cast<runtime_impl *>(Runtime))
+      if (auto Impl = dynamic_cast<instance_impl *>(Runtime))
         delete Impl;
     } /* End of 'DestroyRuntime' function */
   }; /* End of 'interface_impl' class */

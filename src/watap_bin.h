@@ -104,8 +104,8 @@ namespace watap::bin
   /* Table type representation structure */
   struct table_type
   {
-    reference_type ValueReferenceType; // Value reference type
-    limits Limits;                     // Limits
+    reference_type ReferenceType; // Value reference type
+    limits Limits;                // Limits
   }; /* End of 'table_type' structure */
 
   enum class instruction : UINT8
@@ -171,8 +171,8 @@ namespace watap::bin
 
     eI32Const           = 0x41, // Push int32 constant
     eI64Const           = 0x42, // Push int64 constant
-    eF32Const           = 0x43, // Push Float32 constant
-    eF64Const           = 0x44, // Push Float64 constant
+    eF32Const           = 0x43, // Push float32 constant
+    eF64Const           = 0x44, // Push float64 constant
 
     eI32Eqz             = 0x45, // Math operation
     eI32Eq              = 0x46, // Math operation

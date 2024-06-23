@@ -7,86 +7,60 @@
 #  error This file shouldn't be included in global project tree
 #endif // defined(WATAP_IMPL_STANDARD)
 
-/* Evaluation binary operator implementation generation macro */
-#define WATAP_STANDARD_DEFINE_EXEC_OP_BINARY(TYPE, OP) { TYPE *Ptr = EvaluationStack.Pop<TYPE>(sizeof(TYPE)); Ptr[-1] = (Ptr[-1] OP *Ptr); break; }
-
-/* Evaluation binary function implementation generation macro */
-#define WATAP_STANDARD_DEFINE_EXEC_FN_BINARY(TYPE, FN) { TYPE *Ptr = EvaluationStack.Pop<TYPE>(sizeof(TYPE)); Ptr[-1] = (FN(Ptr[-1], *Ptr)); break; }
-
-/* Evaluation unary function implementation generation macro */
-#define WATAP_STANDARD_DEFINE_EXEC_FN_UNARY(TYPE, FN) { TYPE *Ptr = EvaluationStack.Get<TYPE>() - 1; *Ptr = (FN(*Ptr)); break; }
-
-/* WATAP_STANDARD_ROT_FUNCTION_WRAPPER macro helper */
-#define __WATAP_STANDARD_ROT_FUNCTION_WRAPPER(LARG, RARG) (LARG, static_cast<INT>(RARG))
-
-/* Wrapper, special for std::rot* functions don't emit warnings during WIN32 Compilation */
-#define WATAP_STANDARD_ROT_FUNCTION_WRAPPER(FN) FN __WATAP_STANDARD_ROT_FUNCTION_WRAPPER
-
-/* Heap loading with builtin conversion implementaion function */
-#define WATAP_STANDARD_DEFINE_HEAP_LOAD_FROM(TYPE, FROM)                                             \
-{                                                                                                    \
-  auto [Ptr, Offset] = leb128::DecodeUnsigned(InstructionPointer);                                   \
-  InstructionPointer += Offset;                                                                      \
-  EvaluationStack.Push<TYPE>(sizeof(TYPE))[-1] = *reinterpret_cast<const FROM *>(Heap.data() + Ptr); \
-  break;                                                                                             \
-}
-
-/* Heap loading with builtin conversion implementaion function */
-#define WATAP_STANDARD_DEFINE_HEAP_STORE_TO(TYPE, TO)                                                     \
-{                                                                                                         \
-  auto [Ptr, Offset] = leb128::DecodeUnsigned(InstructionPointer);                                        \
-  InstructionPointer += Offset;                                                                           \
-  *reinterpret_cast<TO *>(Heap.data() + Ptr) = static_cast<TO>(*EvaluationStack.Pop<TYPE>(sizeof(TYPE))); \
-  break;                                                                                                  \
-}
-
-/* Integer extend generation macro definition */
-#define WATAP_STANDARD_DEFINE_I_EXTEND(BASE, SUB) { BASE *P = EvaluationStack.Get<BASE>() - 1; *P = static_cast<BASE>(*reinterpret_cast<SUB *>(P)); break; }
-
-/* Heap loading with builtin conversion implementaion function */
-#define WATAP_STANDARD_DEFINE_CAST(FROM, TO)                                                             \
-{                                                                                                        \
-  FROM P = *EvaluationStack.Pop<FROM>(sizeof(FROM));                                                     \
-  EvaluationStack.Push<TO>(sizeof(TO))[-1] = static_cast<TO>(P);                                         \
-  break;                                                                                                 \
-}
-
 /* Project namespace // WASM Namespace // Implementation namesapce // Standard (multiplatform) implementation namespace */
 namespace watap::impl::standard
 {
-  /* Import requirement draft description */
-  struct import_info
+  /* Import table required function set */
+  struct import_element
   {
-    std::string ModuleName;      // Imported value module name
-    std::string ImportName;      // Imported value name
-    bin::import_export_type ImportType; // Imported value type
+    bin::import_export_type Type; // Import requirement type
     union
     {
-      UINT32 Function;           // Imported function type description reference
-      bin::table_type Table;     // Imported table type description
-      bin::limits Memory;        // Imported memory range
-      bin::global_type Variable; // Imported variable
+      struct { UINT32 TypeIndex; }   Function; // Function type
+      bin::table_type                Table;    // Table type
+      struct { bin::limits Limits; } Memory;   // Memory type
+      bin::global_type               Global;   // Global type
     };
 
-    /* Import info constructor */
-    import_info( VOID ) : ImportType(bin::import_export_type::eFunction), Function(0)
+    /* Import requirements constructor. */
+    import_element( VOID ) : Type(bin::import_export_type::eFunction), Function {~0U}
     {
+    } /* End of 'import_element' function */
+  }; /* End of 'import_element' structure */
 
-    } /* End of 'import_info' structure */
-  }; /* End of 'import_info' enumeration */
+  /* Import object name representation structure */
+  struct import_name
+  {
+    std::string ModuleName; // Import module name
+    std::string Name;       // Imoprt name
+
+    /* Import name comparison operator.
+     * ARGUMENTS:
+     *   - another import name:
+     *       const import_name &Rhs;
+     * RETURNS:
+     *   (std::strong_ordering) Operator ordering
+     */
+    constexpr std::strong_ordering operator<=>( const import_name &Rhs ) const noexcept
+    {
+      if (auto Comp = ModuleName <=> Rhs.ModuleName; Comp != std::strong_ordering::equal)
+        return Comp;
+      return Name <=> Rhs.Name;
+    } /* End of 'operator<=> function */
+  }; /* End of 'import_name' structure */
 
   /* Runtime instruction representation structure */
   union compiled_instruction
   {
     struct
     {
-      bin::instruction Instruction;                     // Instruction, actually
+      bin::instruction Instruction;                // Instruction, actually
 
       union // Secondary instruction
       {
-        UINT8                   InstructionPlaceholder; // Secondary instruction placeholder
-        bin::vector_instruction VectorInstruction;      // Vector instruction
-        bin::system_instruction SystemInstruction;      // System instruction
+        UINT8                   InstructionData;   // Secondary instruction placeholder (or data)
+        bin::vector_instruction VectorInstruction; // Vector instruction
+        bin::system_instruction SystemInstruction; // System instruction
       };
     };
     UINT16 InstructionID = 0; // Unique instruction identifier
@@ -108,8 +82,6 @@ namespace watap::impl::standard
     std::vector<UINT8> Instructions; // Raw instruction set
   }; /* End of 'raw_function_data' structure */
 
-  using function_data = std::variant<raw_function_data, compiled_function_data>;
-
   /* Function represetnation class */
   struct function
   {
@@ -120,9 +92,10 @@ namespace watap::impl::standard
   }; /* End of 'function' class */
 
   /* WASM Module representation structure */
-  class module_source_impl : public module_source
+  class source_impl : public source
   {
   private:
+
     /* JIT Compilation status */
     enum class jit_compile_status
     {
@@ -135,648 +108,40 @@ namespace watap::impl::standard
       eInvalidLocalIndex,            // Invalid index of local variable
       eInvalidFunctionArgumentsType, // Invalid function argument type
       eInvalidFunctionIndex,         // Invalid function index
+      eStackNotEmpty,                // Stack isn't empty at end of execution
+      eWrongReturnValueType,         // Wrong type of value, that this function returns
       eUnsupportedFeature,           // Unsupported feature (Vector operations, system instructions, etc.)
     }; /* End of 'jit_compile_status' enumeration */
 
-    jit_compile_status CompileJIT( UINT32 FunctionIndex )
-    {
-      raw_function_data *const RawData = std::get_if<raw_function_data>(&Functions[FunctionIndex]);
-
-      if (RawData == nullptr)
-        return jit_compile_status::eOk;
-
-      std::stack<bin::value_type> TypeStack;
-
-      auto &Signature = FunctionSignatures[RawData->SignatureIndex];
-
-      binary_input_stream Stream {RawData->Instructions};
-
-      compiled_function_data Function;
-
-      std::vector<bin::value_type> LocalTypes;
-
-      // Sizes of locals
-      for (auto Type : Signature.ArgumentTypes)
-        LocalTypes.push_back(Type);
-
-      auto ParseUint = []( binary_input_stream &Stream ) -> std::optional<UINT32>
-      {
-        auto [Value, Offset] = leb128::DecodeUnsigned(Stream.CurrentPtr());
-        if (Stream.Get<UINT8>(Offset))
-          return static_cast<UINT32>(Value);
-        return std::nullopt;
-      };
-
-      // Parse local batches
-      {
-        UINT32 LocalBatchCount = 0;
-        WATAP_SET_OR_RETURN(LocalBatchCount, ParseUint(Stream), jit_compile_status::eLocalParsingError);
-        while (LocalBatchCount--)
-        {
-          UINT32 BatchSize = 0;
-          WATAP_SET_OR_RETURN(BatchSize, ParseUint(Stream), jit_compile_status::eLocalParsingError);
-
-          bin::value_type ValueType = bin::value_type::eI32;
-          WATAP_SET_OR_RETURN(ValueType, Stream.Get<bin::value_type>(), jit_compile_status::eLocalParsingError);
-
-          while (BatchSize--)
-            LocalTypes.push_back(ValueType);
-        }
-      }
-
-      for (auto LocalType : LocalTypes)
-        Function.LocalSizes.push_back(static_cast<UINT32>(bin::GetValueTypeSize(LocalType)));
-      Function.ArgumentCount = static_cast<UINT32>(Signature.ArgumentTypes.size());
-      Function.ReturnSize = static_cast<UINT32>(Signature.ReturnType ? bin::GetValueTypeSize(*Signature.ReturnType) : 0);
-
-      // Parse actual instructions
-
-      const UINT8 *InstructionPointer = RawData->Instructions.data();
-      const UINT8 *InstructionEnd = InstructionPointer + RawData->Instructions.size();
-
-      auto PassInstruction = [&]( bin::instruction Instruction, UINT8 AdditionalData = 0 )
-        {
-          Function.Instructions.push_back(compiled_instruction {Instruction, AdditionalData});
-        };
-
-      auto PassU16 = [&]( UINT16 Constant )
-        {
-          Function.Instructions.push_back(compiled_instruction { .InstructionID = Constant });
-        };
-
-      auto PassU32 = [&]( UINT32 Constant )
-        {
-          Function.Instructions.push_back(compiled_instruction { .InstructionID = static_cast<UINT16>(Constant      ) });
-          Function.Instructions.push_back(compiled_instruction { .InstructionID = static_cast<UINT16>(Constant >> 16) });
-        };
-
-      auto PassU64 = [&]( UINT64 Constant )
-        {
-          Function.Instructions.push_back(compiled_instruction { .InstructionID = static_cast<UINT16>(Constant      ) });
-          Function.Instructions.push_back(compiled_instruction { .InstructionID = static_cast<UINT16>(Constant >> 16) });
-          Function.Instructions.push_back(compiled_instruction { .InstructionID = static_cast<UINT16>(Constant >> 32) });
-          Function.Instructions.push_back(compiled_instruction { .InstructionID = static_cast<UINT16>(Constant >> 48) });
-        };
-
-      auto CheckType = [&]( bin::value_type Type ) -> BOOL
-        {
-          return TypeStack.top() == Type;
-        };
-
-      auto UnaryOperator = [&]( bin::instruction Instruction, bin::value_type SrcType, bin::value_type DstType )
-        {
-          if (TypeStack.empty())
-            throw jit_compile_status::eNoOperandsForUnary;
-
-          if (TypeStack.top() != SrcType)
-            throw jit_compile_status::eInvalidOperandType;
-          TypeStack.pop();
-          TypeStack.push(DstType);
-          Function.Instructions.push_back(compiled_instruction {Instruction});
-        };
-
-      auto UnaryOperatorNoAdd = [&]( bin::value_type SrcType, bin::value_type DstType )
-        {
-          if (TypeStack.empty())
-            throw jit_compile_status::eNoOperandsForUnary;
-
-          if (TypeStack.top() != SrcType)
-            throw jit_compile_status::eInvalidOperandType;
-
-          TypeStack.pop();
-          TypeStack.push(DstType);
-        };
-
-      auto BinaryOperator = [&]( bin::instruction Instruction, bin::value_type LhsType, bin::value_type RhsType, bin::value_type DstType ) -> BOOL
-        {
-          if (TypeStack.size() < 2)
-            throw jit_compile_status::eNoOperandsForBinary;
-
-          if (TypeStack.top() != LhsType)
-            throw jit_compile_status::eInvalidOperandType;
-          TypeStack.pop();
-
-          if (TypeStack.top() != RhsType)
-            throw jit_compile_status::eInvalidOperandType;
-          TypeStack.pop();
-
-          TypeStack.push(DstType);
-          Function.Instructions.push_back(compiled_instruction {Instruction});
-        };
-
-      while (InstructionPointer < InstructionEnd)
-      {
-        bin::instruction Instruction = *reinterpret_cast<const bin::instruction *>(InstructionPointer);
-
-        InstructionPointer += 1;
-
-        try
-        {
-          switch (Instruction)
-          {
-          case bin::instruction::eUnreachable   :
-          case bin::instruction::eNop           :
-          case bin::instruction::eReturn        :
-            PassInstruction(Instruction);
-            break;
-
-          case bin::instruction::eMemoryGrow    :
-          case bin::instruction::eMemorySize    :
-            PassInstruction(Instruction);
-            TypeStack.push(bin::value_type::eI32);
-            break;
-
-          case bin::instruction::eBlock         : // TODO TC4 WASM
-          case bin::instruction::eLoop          : // TODO TC4 WASM
-          case bin::instruction::eIf            : // TODO TC4 WASM
-          case bin::instruction::eElse          : // TODO TC4 WASM
-          case bin::instruction::eExpressionEnd : // TODO TC4 WASM
-          case bin::instruction::eBr            : // TODO TC4 WASM
-          case bin::instruction::eBrIf          : // TODO TC4 WASM
-          case bin::instruction::eBrTable       : // TODO TC4 WASM
-            throw jit_compile_status::eUnsupportedFeature;
-
-          // Match type stack with called function signature
-          case bin::instruction::eCall          :
-            {
-              auto [FunctionIndex, Offset] = leb128::DecodeUnsigned(InstructionPointer);
-              InstructionPointer += Offset;
-
-              if (FunctionIndex >= Functions.size())
-                throw jit_compile_status::eInvalidFunctionIndex;
-
-              auto &CallSignature = FunctionSignatures[FunctionSignatureIndices[FunctionIndex]];
-
-              if (TypeStack.size() < CallSignature.ArgumentTypes.size())
-                throw jit_compile_status::eNoFunctionArguments;
-
-              for (auto Arg : CallSignature.ArgumentTypes)
-              {
-                if (TypeStack.top() != Arg)
-                  throw jit_compile_status::eInvalidFunctionArgumentsType;
-                TypeStack.pop();
-              }
-
-              if (CallSignature.ReturnType)
-                TypeStack.push(*CallSignature.ReturnType);
-              PassInstruction(Instruction);
-              PassU32(static_cast<UINT32>(FunctionIndex));
-              break;
-            }
-
-          case bin::instruction::eCallIndirect  :
-            throw jit_compile_status::eUnsupportedFeature;
-
-          case bin::instruction::eDrop          :
-            {
-              if (TypeStack.empty())
-                  throw jit_compile_status::eNoOperandsForUnary;
-
-              PassInstruction(bin::instruction::eDrop, static_cast<UINT8>(bin::GetValueTypeSize(TypeStack.top())));
-              TypeStack.pop();
-              break;
-            }
-
-          case bin::instruction::eSelect        :
-            throw jit_compile_status::eUnsupportedFeature;
-
-          case bin::instruction::eSelectTyped   :
-            throw jit_compile_status::eUnsupportedFeature;
-
-          case bin::instruction::eLocalGet  :
-            {
-              auto [LocalIndex, Offset] = leb128::DecodeUnsigned(InstructionPointer);
-              InstructionPointer += Offset;
-
-              if (LocalTypes.size() >= LocalIndex)
-                throw jit_compile_status::eInvalidLocalIndex;
-
-              TypeStack.push(LocalTypes[LocalIndex]);
-
-              PassInstruction(bin::instruction::eLocalGet);
-              PassU16(static_cast<UINT16>(LocalIndex));
-              break;
-            }
-
-          case bin::instruction::eLocalSet  :
-          case bin::instruction::eLocalTee  :
-            {
-              auto [LocalIndex, Offset] = leb128::DecodeUnsigned(InstructionPointer);
-              InstructionPointer += Offset;
-
-              if (Function.LocalSizes.size() >= LocalIndex)
-                throw jit_compile_status::eInvalidLocalIndex;
-
-              if (TypeStack.top() != LocalTypes[LocalIndex])
-                throw jit_compile_status::eInvalidOperandType;
-
-              if (Instruction != bin::instruction::eLocalTee)
-                TypeStack.pop();
-
-              PassInstruction(bin::instruction::eLocalSet, static_cast<UINT8>(bin::GetValueTypeSize(LocalTypes[LocalIndex])));
-              PassU16(static_cast<UINT16>(LocalIndex));
-              break;
-            }
-
-          case bin::instruction::eGlobalGet ://         = 0x23, // Load global
-          case bin::instruction::eGlobalSet ://         = 0x24, // Store global
-
-          case bin::instruction::eTableGet : //          = 0x25, // Get value from table
-          case bin::instruction::eTableSet : //          = 0x26, // Set value into table
-            throw jit_compile_status::eUnsupportedFeature;
-
-          case bin::instruction::eI32Load    :
-          case bin::instruction::eI64Load    :
-          case bin::instruction::eF32Load    :
-          case bin::instruction::eF64Load    :
-          case bin::instruction::eI32Load8S  :
-          case bin::instruction::eI32Load8U  :
-          case bin::instruction::eI32Load16S :
-          case bin::instruction::eI32Load16U :
-          case bin::instruction::eI64Load8S  :
-          case bin::instruction::eI64Load8U  :
-          case bin::instruction::eI64Load16S :
-          case bin::instruction::eI64Load16U :
-          case bin::instruction::eI64Load32S :
-          case bin::instruction::eI64Load32U :
-            {
-              auto [Ptr, Offset] = leb128::DecodeUnsigned(InstructionPointer);
-              InstructionPointer += Offset;
-
-              bin::value_type StackType;
-
-              switch (Instruction)
-              {
-              case bin::instruction::eI32Load    : StackType = bin::value_type::eI32; break;
-              case bin::instruction::eI64Load    : StackType = bin::value_type::eI64; break;
-              case bin::instruction::eF32Load    : StackType = bin::value_type::eF32; break;
-              case bin::instruction::eF64Load    : StackType = bin::value_type::eF64; break;
-              case bin::instruction::eI32Load8S  : StackType = bin::value_type::eI32; break;
-              case bin::instruction::eI32Load8U  : StackType = bin::value_type::eI32; break;
-              case bin::instruction::eI32Load16S : StackType = bin::value_type::eI32; break;
-              case bin::instruction::eI32Load16U : StackType = bin::value_type::eI32; break;
-              case bin::instruction::eI64Load8S  : StackType = bin::value_type::eI64; break;
-              case bin::instruction::eI64Load8U  : StackType = bin::value_type::eI64; break;
-              case bin::instruction::eI64Load16S : StackType = bin::value_type::eI64; break;
-              case bin::instruction::eI64Load16U : StackType = bin::value_type::eI64; break;
-              case bin::instruction::eI64Load32S : StackType = bin::value_type::eI64; break;
-              case bin::instruction::eI64Load32U : StackType = bin::value_type::eI64; break;
-              }
-
-              TypeStack.push(StackType);
-
-              PassInstruction(Instruction);
-              PassU32(static_cast<UINT32>(Ptr));
-              break; // = 0x2B, // Load F64 from variable
-            }
-
-          case bin::instruction::eI32Store   :
-          case bin::instruction::eI64Store   :
-          case bin::instruction::eF32Store   :
-          case bin::instruction::eF64Store   :
-          case bin::instruction::eI32Store8  :
-          case bin::instruction::eI32Store16 :
-          case bin::instruction::eI64Store8  :
-          case bin::instruction::eI64Store16 :
-          case bin::instruction::eI64Store32 :
-            {
-              auto [Ptr, Offset] = leb128::DecodeUnsigned(InstructionPointer);
-              InstructionPointer += Offset;
-
-              bin::value_type RequiredType;
-              switch (Instruction)
-              {
-              case bin::instruction::eI32Store   : RequiredType = bin::value_type::eI32; break;
-              case bin::instruction::eI64Store   : RequiredType = bin::value_type::eI64; break;
-              case bin::instruction::eF32Store   : RequiredType = bin::value_type::eF32; break;
-              case bin::instruction::eF64Store   : RequiredType = bin::value_type::eF64; break;
-              case bin::instruction::eI32Store8  : RequiredType = bin::value_type::eI32; break;
-              case bin::instruction::eI32Store16 : RequiredType = bin::value_type::eI32; break;
-              case bin::instruction::eI64Store8  : RequiredType = bin::value_type::eI64; break;
-              case bin::instruction::eI64Store16 : RequiredType = bin::value_type::eI64; break;
-              case bin::instruction::eI64Store32 : RequiredType = bin::value_type::eI64; break;
-              }
-
-              if (TypeStack.empty())
-                throw jit_compile_status::eNoOperandsForUnary;
-
-              if (TypeStack.top() != RequiredType)
-                throw jit_compile_status::eInvalidOperandType;
-
-              TypeStack.pop();
-              PassInstruction(Instruction);
-              break;
-            }
-
-          case bin::instruction::eI32Const          :
-            {
-              auto [Value, Offset] = leb128::DecodeSigned<32>(InstructionPointer);
-              InstructionPointer += Offset;
-
-              TypeStack.push(bin::value_type::eI32);
-              PassInstruction(bin::instruction::eI32Const);
-              PassU32(static_cast<UINT32>(Value));
-              break;
-            }
-
-          case bin::instruction::eF32Const          :
-            {
-              TypeStack.push(bin::value_type::eF32);
-              PassInstruction(bin::instruction::eF32Const);
-              PassU32(*reinterpret_cast<const UINT32 *>(InstructionPointer));
-              InstructionPointer += 4;
-              break;
-            }
-
-          case bin::instruction::eI64Const          :
-            {
-              auto [Value, Offset] = leb128::DecodeSigned<64>(InstructionPointer);
-              InstructionPointer += Offset;
-
-              TypeStack.push(bin::value_type::eI32);
-              PassInstruction(bin::instruction::eI64Const);
-              PassU64(Value);
-              break;
-            }
-
-          case bin::instruction::eF64Const          :
-            {
-              TypeStack.push(bin::value_type::eF64);
-              PassInstruction(bin::instruction::eF64Const);
-              PassU64(*reinterpret_cast<const UINT64 *>(InstructionPointer));
-              InstructionPointer += 4;
-              break;
-            }
-
-          case bin::instruction::eI32Eqz             :
-            UnaryOperator(Instruction, bin::value_type::eI32, bin::value_type::eI32);
-            break;
-
-          case bin::instruction::eI32Eq              :
-          case bin::instruction::eI32Ne              :
-          case bin::instruction::eI32LtS             :
-          case bin::instruction::eI32LtU             :
-          case bin::instruction::eI32GtS             :
-          case bin::instruction::eI32GtU             :
-          case bin::instruction::eI32LeS             :
-          case bin::instruction::eI32LeU             :
-          case bin::instruction::eI32GeS             :
-          case bin::instruction::eI32GeU             :
-            BinaryOperator(Instruction, bin::value_type::eI32, bin::value_type::eI32, bin::value_type::eI32);
-            break;
-
-          case bin::instruction::eI64Eqz             :
-          case bin::instruction::eI64Eq              :
-          case bin::instruction::eI64Ne              :
-          case bin::instruction::eI64LtS             :
-          case bin::instruction::eI64LtU             :
-          case bin::instruction::eI64GtS             :
-          case bin::instruction::eI64GtU             :
-          case bin::instruction::eI64LeS             :
-          case bin::instruction::eI64LeU             :
-          case bin::instruction::eI64GeS             :
-          case bin::instruction::eI64GeU             :
-            BinaryOperator(Instruction, bin::value_type::eI64, bin::value_type::eI64, bin::value_type::eI32);
-            break;
-
-          case bin::instruction::eF32Eq              :
-          case bin::instruction::eF32Ne              :
-          case bin::instruction::eF32Lt              :
-          case bin::instruction::eF32Gt              :
-          case bin::instruction::eF32Le              :
-          case bin::instruction::eF32Ge              :
-            BinaryOperator(Instruction, bin::value_type::eF32, bin::value_type::eF32, bin::value_type::eI32);
-            break;
-
-
-          case bin::instruction::eF64Eq              :
-          case bin::instruction::eF64Ne              :
-          case bin::instruction::eF64Lt              :
-          case bin::instruction::eF64Gt              :
-          case bin::instruction::eF64Le              :
-          case bin::instruction::eF64Ge              :
-            BinaryOperator(Instruction, bin::value_type::eF64, bin::value_type::eF64, bin::value_type::eI32);
-            break;
-
-          case bin::instruction::eI32Clz             :
-          case bin::instruction::eI32Ctz             :
-          case bin::instruction::eI32Popcnt          :
-            UnaryOperator(Instruction, bin::value_type::eI32, bin::value_type::eI32);
-            break;
-
-          case bin::instruction::eI32Add             :
-          case bin::instruction::eI32Sub             :
-          case bin::instruction::eI32Mul             :
-          case bin::instruction::eI32DivS            :
-          case bin::instruction::eI32DivU            :
-          case bin::instruction::eI32RemS            :
-          case bin::instruction::eI32RemU            :
-          case bin::instruction::eI32And             :
-          case bin::instruction::eI32Or              :
-          case bin::instruction::eI32Xor             :
-          case bin::instruction::eI32Shl             :
-          case bin::instruction::eI32ShrS            :
-          case bin::instruction::eI32ShrU            :
-          case bin::instruction::eI32Rotl            :
-          case bin::instruction::eI32Rotr            :
-            BinaryOperator(Instruction, bin::value_type::eI32, bin::value_type::eI32, bin::value_type::eI32);
-            break;
-
-          case bin::instruction::eI64Clz             :
-          case bin::instruction::eI64Ctz             :
-          case bin::instruction::eI64Popcnt          :
-            UnaryOperator(Instruction, bin::value_type::eI64, bin::value_type::eI64);
-            break;
-
-          case bin::instruction::eI64Add             :
-          case bin::instruction::eI64Sub             :
-          case bin::instruction::eI64Mul             :
-          case bin::instruction::eI64DivS            :
-          case bin::instruction::eI64DivU            :
-          case bin::instruction::eI64RemS            :
-          case bin::instruction::eI64RemU            :
-          case bin::instruction::eI64And             :
-          case bin::instruction::eI64Or              :
-          case bin::instruction::eI64Xor             :
-          case bin::instruction::eI64Shl             :
-          case bin::instruction::eI64ShrS            :
-          case bin::instruction::eI64ShrU            :
-          case bin::instruction::eI64Rotl            :
-          case bin::instruction::eI64Rotr            :
-            BinaryOperator(Instruction, bin::value_type::eI64, bin::value_type::eI64, bin::value_type::eI64);
-            break;
-
-
-          case bin::instruction::eF32Abs             :
-          case bin::instruction::eF32Neg             :
-          case bin::instruction::eF32Ceil            :
-          case bin::instruction::eF32Floor           :
-          case bin::instruction::eF32Trunc           :
-          case bin::instruction::eF32Nearest         :
-          case bin::instruction::eF32Sqrt            :
-            UnaryOperator(Instruction, bin::value_type::eF32, bin::value_type::eF32);
-            break;
-
-          case bin::instruction::eF32Add             :
-          case bin::instruction::eF32Sub             :
-          case bin::instruction::eF32Mul             :
-          case bin::instruction::eF32Div             :
-          case bin::instruction::eF32Min             :
-          case bin::instruction::eF32Max             :
-          case bin::instruction::eF32CopySign        :
-            BinaryOperator(Instruction, bin::value_type::eF32, bin::value_type::eF32, bin::value_type::eF32);
-            break;
-
-          case bin::instruction::eF64Abs             :
-          case bin::instruction::eF64Neg             :
-          case bin::instruction::eF64Ceil            :
-          case bin::instruction::eF64Floor           :
-          case bin::instruction::eF64Trunc           :
-          case bin::instruction::eF64Nearest         :
-          case bin::instruction::eF64Sqrt            :
-            UnaryOperator(Instruction, bin::value_type::eF32, bin::value_type::eF32);
-            break;
-
-          case bin::instruction::eF64Add             :
-          case bin::instruction::eF64Sub             :
-          case bin::instruction::eF64Mul             :
-          case bin::instruction::eF64Div             :
-          case bin::instruction::eF64Min             :
-          case bin::instruction::eF64Max             :
-          case bin::instruction::eF64CopySign        :
-            BinaryOperator(Instruction, bin::value_type::eF32, bin::value_type::eF32, bin::value_type::eF32);
-            break;
-
-          case bin::instruction::eI32WrapI64         :
-            UnaryOperator(Instruction, bin::value_type::eI64, bin::value_type::eI32);
-            break;
-
-          case bin::instruction::eI32TruncF32S       :
-          case bin::instruction::eI32TruncF32U       :
-            UnaryOperator(Instruction, bin::value_type::eF32, bin::value_type::eI32);
-            break;
-
-          case bin::instruction::eI32TruncF64S       :
-          case bin::instruction::eI32TruncF64U       :
-            UnaryOperator(Instruction, bin::value_type::eF64, bin::value_type::eI32);
-            break;
-
-          case bin::instruction::eI64ExtendI32S      :
-          case bin::instruction::eI64ExtendI32U      :
-            UnaryOperator(Instruction, bin::value_type::eI32, bin::value_type::eI64);
-            break;
-
-          case bin::instruction::eI64TruncF32S       :
-          case bin::instruction::eI64TruncF32U       :
-            UnaryOperator(Instruction, bin::value_type::eF32, bin::value_type::eI64);
-            break;
-
-          case bin::instruction::eI64TruncF64S       :
-          case bin::instruction::eI64TruncF64U       :
-            UnaryOperator(Instruction, bin::value_type::eF64, bin::value_type::eI64);
-            break;
-
-          case bin::instruction::eF32ConvertI32S     :
-          case bin::instruction::eF32ConvertI32U     :
-            UnaryOperator(Instruction, bin::value_type::eI32, bin::value_type::eF32);
-            break;
-
-          case bin::instruction::eF32ConvertI64S     :
-          case bin::instruction::eF32ConvertI64U     :
-            UnaryOperator(Instruction, bin::value_type::eI64, bin::value_type::eF32);
-            break;
-
-          case bin::instruction::eF32DemoteF64       :
-            UnaryOperator(Instruction, bin::value_type::eF64, bin::value_type::eF32);
-            break;
-
-          case bin::instruction::eF64ConvertI32S     :
-          case bin::instruction::eF64ConvertI32U     :
-            UnaryOperator(Instruction, bin::value_type::eI32, bin::value_type::eF64);
-            break;
-
-          case bin::instruction::eF64ConvertI64S     :
-          case bin::instruction::eF64ConvertI64U     :
-            UnaryOperator(Instruction, bin::value_type::eI64, bin::value_type::eF64);
-            break;
-
-          case bin::instruction::eF64PromoteF32      :
-            UnaryOperator(Instruction, bin::value_type::eF32, bin::value_type::eF64);
-            break;
-
-          case bin::instruction::eI32ReinterpretF32  : UnaryOperatorNoAdd(bin::value_type::eF32, bin::value_type::eI32); break;
-          case bin::instruction::eI64ReinterpretF64  : UnaryOperatorNoAdd(bin::value_type::eF64, bin::value_type::eI64); break;
-          case bin::instruction::eF32ReinterpretI32  : UnaryOperatorNoAdd(bin::value_type::eI32, bin::value_type::eF32); break;
-          case bin::instruction::eF64ReinterpretI64  : UnaryOperatorNoAdd(bin::value_type::eI64, bin::value_type::eF64); break;
-
-          case bin::instruction::eI32Extend8S        :
-          case bin::instruction::eI32Extend16S       :
-            UnaryOperator(Instruction, bin::value_type::eI32, bin::value_type::eI32);
-            break;
-
-          case bin::instruction::eI64Extend8S        :
-          case bin::instruction::eI64Extend16S       :
-          case bin::instruction::eI64Extend32S       :
-            UnaryOperator(Instruction, bin::value_type::eI64, bin::value_type::eI64);
-            break;
-
-          case bin::instruction::eRefNull   :
-          {
-            bin::reference_type RefType = *reinterpret_cast<const bin::reference_type *>(InstructionPointer);
-
-            TypeStack.push(static_cast<bin::value_type>(RefType));
-            PassInstruction(bin::instruction::eRefNull);
-            break;
-          }
-
-          case bin::instruction::eRefIsNull :
-          {
-            if (TypeStack.empty())
-              throw jit_compile_status::eNoOperandsForUnary;
-
-            if (TypeStack.top() != bin::value_type::eFuncRef && TypeStack.top() != bin::value_type::eExternRef)
-              throw jit_compile_status::eInvalidOperandType;
-            TypeStack.pop();
-            TypeStack.push(bin::value_type::eI32);
-            PassInstruction(bin::instruction::eRefIsNull);
-            break;
-          }
-
-          case bin::instruction::eRefFunc   :
-          {
-            auto [Value, Offset] = leb128::DecodeSigned<32>(InstructionPointer);
-            InstructionPointer += Offset;
-
-            TypeStack.push(bin::value_type::eFuncRef);
-            PassInstruction(bin::instruction::eRefFunc);
-            PassU32(static_cast<UINT32>(Value));
-            break;
-          }
-
-          case bin::instruction::eSystem :
-          case bin::instruction::eVector :
-            throw jit_compile_status::eUnsupportedFeature;
-          }
-        }
-        catch (jit_compile_status Err)
-        {
-          return Err;
-        }
-      }
-
-      Functions[FunctionIndex] = Function;
-      return jit_compile_status::eOk;
-    } /* End of 'CompileJIT' function */
+    /* Just In Time compilation function.
+     * ARGUMENTS:
+     *   - function to compile index:
+     *       UINT32 FunctionIndex;
+     * RETURNS:
+     *   (jit_compile_status) Compilation status.
+     */
+    jit_compile_status CompileJIT( UINT32 FunctionIndex );
 
   public:
-    std::vector<function_signature> FunctionSignatures;             // Function signature list
-    std::vector<UINT32> FunctionSignatureIndices;                   // Indices of function signatures
 
-    std::optional<std::string> StartName;                           // Start function name (optional)
-    std::vector<function_data> Functions;                           // Function list
-    std::map<std::string, UINT32, std::less<>> FunctionExportTable; // Exported function table
+    std::map<import_name, import_element> RequiredImports; // Required import set
+    std::vector<bin::table_type> Tables;                   // Table set
 
-    /* Function getting function...
+
+    std::optional<std::string> StartName;                                           // Start function name (optional)
+    std::vector<function_signature> FunctionSignatures;                             // Function signature list
+    std::vector<UINT32> FunctionSignatureIndices;                                   // Indices of function signatures
+
+    std::vector<std::variant<raw_function_data, compiled_function_data>> Functions; // Function lists
+    std::map<std::string, UINT32, std::less<>> FunctionExportTable;                 // Exported function table
+
+    /* Source implementation constructor */
+    source_impl( VOID )
+    {
+
+    } /* End of 'module_source' class */
+
+    /* Function getting function.
      * ARGUMENTS:
      *   - funciton index:
      *       const UINT32 FunctionIndex;
@@ -789,7 +154,8 @@ namespace watap::impl::standard
         return nullptr;
       if (const compiled_function_data *FData = std::get_if<compiled_function_data>(&Functions[FunctionIndex]))
         return FData;
-      if (const_cast<module_source_impl *>(this)->CompileJIT(FunctionIndex) != jit_compile_status::eOk)
+      // uugh
+      if (const_cast<source_impl *>(this)->CompileJIT(FunctionIndex) != jit_compile_status::eOk)
         return nullptr;
       return &std::get<compiled_function_data>(Functions[FunctionIndex]);
     } /* End of 'GetFunction' function */
@@ -809,23 +175,16 @@ namespace watap::impl::standard
         return nullptr;
     } /* End of 'GetExportFunction' function */
 
-    /* Module data representation structure */
-    module_source_impl( VOID )
-    {
-
-    } /* End of 'module_source' class */
-
     /* Start function name getting function.
      * ARGUMENTS: None.
      * RETURNS:
-     *   (std::optional<std::string_view>) Start function name, if it is defined.
+     *   (std::optional<std::string_view>) Start function name in case it is defined.
      */
     std::optional<std::string_view> GetStartName( VOID ) const override
     {
       return StartName;
     } /* End of 'GetStartName' function */
-
-  }; /* End of 'module_source' class */
+  }; /* End of 'source' class */
 
   /* Stack, specially designed for local variables representation class */
   class local_stack
@@ -923,10 +282,10 @@ namespace watap::impl::standard
     } /* End of '~local_stack' function */
   }; /* End of 'local_stack' structure */
 
-  /* Runtime implementation */
-  class runtime_impl : public runtime
+  /* Instance implementation function */
+  class instance_impl : public instance
   {
-    const module_source_impl &Source; // Module source
+    const source_impl &Source; // Reference to module source
 
     /* Inner call representation structure */
     struct call
@@ -938,9 +297,9 @@ namespace watap::impl::standard
 
     local_stack LocalStack;        // Stack of local variables / function parameters
     local_stack EvaluationStack;   // Stack of evaluation
-    std::vector<UINT8> Heap;       // Heap
+    std::vector<UINT8> Heap;       // Memory heap
     std::stack<call> CallStack;    // Call stack, holds pointers to functions
-    BOOL Trapped = FALSE;          // Trapped
+    BOOL Trapped = FALSE;          // Is instance trapped
 
     /* Evaluation terminate function.
      * ARGUMENTS: None.
@@ -956,7 +315,12 @@ namespace watap::impl::standard
 
   public:
 
-    runtime_impl( const module_source_impl &Source ) : Source(Source)
+    /* Instance implementation constructor.
+     * ARGUMENTS:
+     *   - module to create instance of:
+     *       module_source_impl &Source;
+     */
+    instance_impl( const source_impl &Source ) : Source(Source)
     {
       Heap.resize(65536);
     } /* End of 'runtime_impl' class */
@@ -972,15 +336,123 @@ namespace watap::impl::standard
      */
     std::optional<value> Call( std::string_view FunctionName, std::span<const value> Parameters = {} )
     {
-      auto *RootFnPtr = Source.GetExportFunction(FunctionName);
-      if (RootFnPtr == nullptr)
-        return std::nullopt;
-      const compiled_function_data &RootFn = *RootFnPtr;
+      // auto *RootFnPtr = Source.GetExportFunction(FunctionName);
+      // if (RootFnPtr == nullptr)
+      //   return std::nullopt;
+      // const compiled_function_data &RootFn = *RootFnPtr;
 
       return std::nullopt;
     } /* End of 'Call' function */
 
-    #if FALSE
+    /* Global value getting function.
+     * ARGUMENTS:
+     *   - global value name:
+     *       std::string_view GlobalName;
+     * RETURNS:
+     *   (VOID *) Pointer to runtime memory that corresponds to WasmPtr;
+     */
+    BOOL SetGlobal( std::string_view GlobalName, value Value )
+    {
+      return FALSE;
+    } /* End of 'SetGlobal' function */
+
+    /* Global value getting function.
+     * ARGUMENTS:
+     *   - global value name:
+     *       std::string_view GlobalName;
+     * RETURNS:
+     *   (VOID *) Pointer to runtime memory that corresponds to WasmPtr;
+     */
+    std::optional<value> GetGlobal( std::string_view GlobalName ) const
+    {
+      return std::nullopt;
+    } /* End of 'GetGlobal' function */
+
+    /* Module pointer dereferencing function.
+     * ARGUMENTS:
+     *   - module ptr:
+     *       UINT32 WasmPtr;
+     * RETURNS:
+     *   (VOID *) Pointer to runtime memory that corresponds to WasmPtr;
+     */
+    VOID * GetPtr( UINT32 WasmPtr )
+    {
+      return Heap.data() + WasmPtr;
+    } /* End of 'GetPtr' function */
+
+    /* Is module trapped, trap requires module full restart.
+     * ARGUMENTS: None.
+     * RETURNS:
+     *   (BOOL) TRUE if runtime is trapped, FALSE otherwise;
+     */
+    BOOL IsTrapped( VOID ) const
+    {
+      return Trapped;
+    } /* End of 'IsTrapped' function */
+
+    /* Module restart function.
+     * ARGUMENTS: None.
+     * RETURNS: None.
+     */
+    VOID Restart( VOID )
+    {
+      if (!Trapped)
+        Trap();
+      Trapped = FALSE;
+    } /* End of 'Restart' function */
+  }; /* End of 'runtime_impl' class */
+} /* end of 'watap::impl::standard' namespace */
+
+#endif // !defined(__watap_impl_standard_def_h_)
+
+/* END OF 'watap_impl_standard_def.h' FILE */
+
+#if 0
+/* Evaluation binary operator implementation generation macro */
+#define WATAP_STANDARD_DEFINE_EXEC_OP_BINARY(TYPE, OP) { TYPE *Ptr = EvaluationStack.Pop<TYPE>(sizeof(TYPE)); Ptr[-1] = (Ptr[-1] OP *Ptr); break; }
+
+/* Evaluation binary function implementation generation macro */
+#define WATAP_STANDARD_DEFINE_EXEC_FN_BINARY(TYPE, FN) { TYPE *Ptr = EvaluationStack.Pop<TYPE>(sizeof(TYPE)); Ptr[-1] = (FN(Ptr[-1], *Ptr)); break; }
+
+/* Evaluation unary function implementation generation macro */
+#define WATAP_STANDARD_DEFINE_EXEC_FN_UNARY(TYPE, FN) { TYPE *Ptr = EvaluationStack.Get<TYPE>() - 1; *Ptr = (FN(*Ptr)); break; }
+
+/* WATAP_STANDARD_ROT_FUNCTION_WRAPPER macro helper */
+#define __WATAP_STANDARD_ROT_FUNCTION_WRAPPER(LARG, RARG) (LARG, static_cast<INT>(RARG))
+
+/* Wrapper, special for std::rot* functions don't emit warnings during WIN32 Compilation */
+#define WATAP_STANDARD_ROT_FUNCTION_WRAPPER(FN) FN __WATAP_STANDARD_ROT_FUNCTION_WRAPPER
+
+/* Heap loading with builtin conversion implementaion function */
+#define WATAP_STANDARD_DEFINE_HEAP_LOAD_FROM(TYPE, FROM)                                             \
+{                                                                                                    \
+  auto [Ptr, Offset] = leb128::DecodeUnsigned(InstructionPointer);                                   \
+  InstructionPointer += Offset;                                                                      \
+  EvaluationStack.Push<TYPE>(sizeof(TYPE))[-1] = *reinterpret_cast<const FROM *>(Heap.data() + Ptr); \
+  break;                                                                                             \
+}
+
+/* Heap loading with builtin conversion implementaion function */
+#define WATAP_STANDARD_DEFINE_HEAP_STORE_TO(TYPE, TO)                                                     \
+{                                                                                                         \
+  auto [Ptr, Offset] = leb128::DecodeUnsigned(InstructionPointer);                                        \
+  InstructionPointer += Offset;                                                                           \
+  *reinterpret_cast<TO *>(Heap.data() + Ptr) = static_cast<TO>(*EvaluationStack.Pop<TYPE>(sizeof(TYPE))); \
+  break;                                                                                                  \
+}
+
+/* Integer extend generation macro definition */
+#define WATAP_STANDARD_DEFINE_I_EXTEND(BASE, SUB) { BASE *P = EvaluationStack.Get<BASE>() - 1; *P = static_cast<BASE>(*reinterpret_cast<SUB *>(P)); break; }
+
+/* Heap loading with builtin conversion implementaion function */
+#define WATAP_STANDARD_DEFINE_CAST(FROM, TO)                                                             \
+{                                                                                                        \
+  FROM P = *EvaluationStack.Pop<FROM>(sizeof(FROM));                                                     \
+  EvaluationStack.Push<TO>(sizeof(TO))[-1] = static_cast<TO>(P);                                         \
+  break;                                                                                                 \
+}
+
+
     /* Module function calling function.
      * ARGUMENTS:
      *   - function name:
@@ -1390,67 +862,4 @@ namespace watap::impl::standard
       std::memcpy(&Result, EvaluationStack.Pop(Size), Size);
       return Result;
     } /* End of 'Call' function */
-    #endif
-
-    /* Global value getting function.
-     * ARGUMENTS:
-     *   - global value name:
-     *       std::string_view GlobalName;
-     * RETURNS:
-     *   (VOID *) Pointer to runtime memory that corresponds to WasmPtr;
-     */
-    BOOL SetGlobal( std::string_view GlobalName, value Value )
-    {
-      return FALSE;
-    } /* End of 'SetGlobal' function */
-
-    /* Global value getting function.
-     * ARGUMENTS:
-     *   - global value name:
-     *       std::string_view GlobalName;
-     * RETURNS:
-     *   (VOID *) Pointer to runtime memory that corresponds to WasmPtr;
-     */
-    std::optional<value> GetGlobal( std::string_view GlobalName ) const
-    {
-      return std::nullopt;
-    } /* End of 'GetGlobal' function */
-
-    /* Module pointer dereferencing function.
-     * ARGUMENTS:
-     *   - module ptr:
-     *       UINT32 WasmPtr;
-     * RETURNS:
-     *   (VOID *) Pointer to runtime memory that corresponds to WasmPtr;
-     */
-    VOID * GetPtr( UINT32 WasmPtr )
-    {
-      return Heap.data() + WasmPtr;
-    } /* End of 'GetPtr' function */
-
-    /* Is module trapped, trap requires module full restart.
-     * ARGUMENTS: None.
-     * RETURNS:
-     *   (BOOL) TRUE if runtime is trapped, FALSE otherwise;
-     */
-    BOOL IsTrapped( VOID ) const
-    {
-      return Trapped;
-    } /* End of 'IsTrapped' function */
-
-    /* Module restart function.
-     * ARGUMENTS: None.
-     * RETURNS: None.
-     */
-    VOID Restart( VOID )
-    {
-      if (!Trapped)
-        Trap();
-      Trapped = FALSE;
-    } /* End of 'Restart' function */
-  }; /* End of 'runtime_impl' class */
-} /* end of 'watap::impl::standard' namespace */
-
-#endif // !defined(__watap_impl_standard_def_h_)
-
-/* END OF 'watap_impl_standard_def.h' FILE */
+#endif

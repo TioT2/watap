@@ -33,10 +33,9 @@ INT main( INT Argc, const CHAR **Argv )
 
   auto Wasm = watap::impl::standard::Create();
 
-  auto ModuleSource = Wasm->CreateModuleSource(watap::module_source_info { WasmBin });
+  auto ModuleSource = Wasm->CreateSource(watap::source_info { WasmBin });
 
-
-  auto Runtime = Wasm->CreateRuntime(watap::runtime_info {
+  auto Runtime = Wasm->CreateInstance(watap::instance_info {
     .ModuleSource = ModuleSource,
     .ImportTable = nullptr,
   });
@@ -75,8 +74,8 @@ INT main( INT Argc, const CHAR **Argv )
     watap::value {.F32x4 { -47.0F }},
   }, watap::value {.F32x4 { -1.0F }});
 
-  Wasm->DestroyRuntime(Runtime);
-  Wasm->DestroyModuleSource(ModuleSource);
+  Wasm->DestroyInstance(Runtime);
+  Wasm->DestroySource(ModuleSource);
 
   watap::impl::standard::Destroy(Wasm);
 
