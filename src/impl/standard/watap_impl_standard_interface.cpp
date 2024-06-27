@@ -25,21 +25,6 @@
 
 namespace watap::impl::standard
 {
-  /* UINT32 from value parsing function.
-   * ARGUMENTS:
-   *   - binary stream:
-   *       binary_input_stream &Stream;
-   * RETURNS:
-   *   (std::optional<UINT32>) Parsed UINT32.
-   */
-  std::optional<UINT32> ParseUint( binary_input_stream &Stream )
-  {
-    auto [Value, Offset] = leb128::DecodeUnsigned(Stream.CurrentPtr());
-    if (Stream.Get<UINT8>(Offset))
-      return static_cast<UINT32>(Value);
-    return std::nullopt;
-  } /* End of 'ParseUint' function */
-
   /* Function type parsing function.
    * ARGUMENTS:
    *   - stream to parse data from:
@@ -55,7 +40,7 @@ namespace watap::impl::standard
     function_signature Result;
 
     UINT32 ArgumentCount = 0;
-    WATAP_SET_OR_RETURN(ArgumentCount, ParseUint(Stream), std::nullopt);
+    WATAP_SET_OR_RETURN(ArgumentCount, bin_util::ParseUint(Stream), std::nullopt);
 
     Result.ArgumentTypes.reserve(ArgumentCount);
 
@@ -63,7 +48,7 @@ namespace watap::impl::standard
       WATAP_CALL_OR_RETURN(Result.ArgumentTypes.push_back, Stream.Get<bin::value_type>(), std::nullopt);
 
     SIZE_T ReturnTypeCount = 0;
-    WATAP_SET_OR_RETURN(ReturnTypeCount, ParseUint(Stream), std::nullopt);
+    WATAP_SET_OR_RETURN(ReturnTypeCount, bin_util::ParseUint(Stream), std::nullopt);
 
     if (ReturnTypeCount-- > 0)
       WATAP_SET_OR_RETURN(Result.ReturnType, Stream.Get<bin::value_type>(), std::nullopt);
@@ -103,11 +88,11 @@ namespace watap::impl::standard
     switch (LimitType)
     {
     case bin::limit_type::eMinMax:
-      WATAP_SET_OR_RETURN(Result.Max, ParseUint(Stream), std::nullopt);
+      WATAP_SET_OR_RETURN(Result.Max, bin_util::ParseUint(Stream), std::nullopt);
       [[fallthrough]];
 
     case bin::limit_type::eMin:
-      WATAP_SET_OR_RETURN(Result.Min, ParseUint(Stream), std::nullopt);
+      WATAP_SET_OR_RETURN(Result.Min, bin_util::ParseUint(Stream), std::nullopt);
       break;
     }
 
@@ -142,7 +127,7 @@ namespace watap::impl::standard
       WATAP_SET_OR_BREAK(SectionId, Stream.Get<bin::section_id>());
 
       SIZE_T SectionSize;
-      WATAP_SET_OR_RETURN(SectionSize, ParseUint(Stream), std::nullopt);
+      WATAP_SET_OR_RETURN(SectionSize, bin_util::ParseUint(Stream), std::nullopt);
 
       switch (SectionId)
       {
@@ -198,7 +183,7 @@ namespace watap::impl::standard
       binary_input_stream Stream {SectionIter->second};
 
       UINT32 FunctionSignatureCount = 0;
-      WATAP_SET_OR_RETURN(FunctionSignatureCount, ParseUint(Stream), nullptr);
+      WATAP_SET_OR_RETURN(FunctionSignatureCount, bin_util::ParseUint(Stream), nullptr);
   
       Result->FunctionSignatures.reserve(FunctionSignatureCount);
       while (FunctionSignatureCount--)
@@ -211,10 +196,10 @@ namespace watap::impl::standard
       binary_input_stream Stream {SectionIter->second};
 
       UINT32 FunctionCount = 0;
-      WATAP_SET_OR_RETURN(FunctionCount, ParseUint(Stream), nullptr);
+      WATAP_SET_OR_RETURN(FunctionCount, bin_util::ParseUint(Stream), nullptr);
 
       while (FunctionCount--)
-        WATAP_CALL_OR_RETURN(Result->FunctionSignatureIndices.push_back, ParseUint(Stream), nullptr);
+        WATAP_CALL_OR_RETURN(Result->FunctionSignatureIndices.push_back, bin_util::ParseUint(Stream), nullptr);
     }
 
     /* Table section */
@@ -241,7 +226,7 @@ namespace watap::impl::standard
       binary_input_stream Stream {SectionIter->second};
 
       UINT32 ImportCount = 0;
-      WATAP_SET_OR_RETURN(ImportCount, ParseUint(Stream), nullptr);
+      WATAP_SET_OR_RETURN(ImportCount, bin_util::ParseUint(Stream), nullptr);
 
       for (UINT32 i = 0; i < ImportCount; i++)
       {
@@ -256,7 +241,7 @@ namespace watap::impl::standard
         switch (Element.Type)
         {
         case bin::import_export_type::eFunction:
-          WATAP_SET_OR_RETURN(Element.Function.TypeIndex, ParseUint(Stream), nullptr);
+          WATAP_SET_OR_RETURN(Element.Function.TypeIndex, bin_util::ParseUint(Stream), nullptr);
           break;
 
         case bin::import_export_type::eTable:
@@ -278,7 +263,7 @@ namespace watap::impl::standard
           return nullptr;
         }
 
-        Result->RequiredImports[Name] = Element;
+        Result->Imports[Name] = Element;
       }
     }
 
@@ -288,14 +273,14 @@ namespace watap::impl::standard
       binary_input_stream Stream {SectionIter->second};
 
       UINT32 FunctionCount = 0;
-      WATAP_SET_OR_RETURN(FunctionCount, ParseUint(Stream), nullptr);
+      WATAP_SET_OR_RETURN(FunctionCount, bin_util::ParseUint(Stream), nullptr);
 
       for (UINT32 i = 0; i < FunctionCount; i++)
       {
         const function_signature &Signature = Result->FunctionSignatures[Result->FunctionSignatureIndices[i]];
 
         UINT32 CodeSize = 0;
-        WATAP_SET_OR_RETURN(CodeSize, ParseUint(Stream), nullptr);
+        WATAP_SET_OR_RETURN(CodeSize, bin_util::ParseUint(Stream), nullptr);
 
         Result->Functions.push_back(raw_function_data
         {
@@ -313,26 +298,19 @@ namespace watap::impl::standard
       binary_input_stream Stream {SectionIter->second};
 
       UINT32 ExportCount = 0;
-      WATAP_SET_OR_RETURN(ExportCount, ParseUint(Stream), nullptr);
+      WATAP_SET_OR_RETURN(ExportCount, bin_util::ParseUint(Stream), nullptr);
 
-      while (ExportCount--)
+      for (UINT32 i = 0; i < ExportCount; i++)
       {
         std::string Name;
+        export_element Element;
+
+        /* Parse name and element */
         WATAP_SET_OR_RETURN(Name, ParseString(Stream), nullptr);
+        WATAP_SET_OR_RETURN(Element.Type, Stream.Get<bin::import_export_type>(), nullptr);
+        WATAP_SET_OR_RETURN(Element.Index, Stream.Get<UINT32>(), nullptr);
 
-        bin::import_export_type ExportType;
-        WATAP_SET_OR_RETURN(ExportType, Stream.Get<bin::import_export_type>(), nullptr);
-        UINT32 ExportIndex;
-        WATAP_SET_OR_RETURN(ExportIndex, ParseUint(Stream), nullptr);
-
-        switch (ExportType)
-        {
-        case bin::import_export_type::eFunction:
-        {
-          Result->FunctionExportTable.emplace(std::move(Name), ExportIndex);
-          break;
-        }
-        }
+        Result->Exports[Name] = Element;
       }
     }
 

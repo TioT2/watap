@@ -37,8 +37,6 @@ namespace watap::bin
     eMinMax = 0x01, // MinMax
   }; /* End of 'limit_type' structure */
 
-  constexpr UINT8 FUNCTION_BEGIN = 0x60; // Function begin sign
-
   /* Value type */
   enum class value_type : UINT8
   {
@@ -50,6 +48,8 @@ namespace watap::bin
     eI64       = (UINT8)numeric_type::eI64,         //  64 bit integral type
     eI32       = (UINT8)numeric_type::eI32,         //  32 bit integral type
   }; /* End of 'type' namespace */
+
+  constexpr UINT8 FUNCTION_BEGIN = 0x60; // Function begin sign
 
   /* Value type size in bytes getting function.
    * ARGUMENTS:
@@ -114,15 +114,15 @@ namespace watap::bin
     eNop                = 0x01, // Nop
     eBlock              = 0x02, // Just block
     eLoop               = 0x03, // Loop
-    eIf                 = 0x04, // Simple branching instruction
-    eElse               = 0x05, // Else. Must occur after if instruction only.
+    eIf                 = 0x04, // Branching instruction
+    eElse               = 0x05, // Else. Must appear after 'instruction::eIf' instruction only and once
     eExpressionEnd      = 0x0B, // Expression end
-    eBr                 = 0x0C, // Just goto
+    eBr                 = 0x0C, // Goto
     eBrIf               = 0x0D, // Goto if
     eReturn             = 0x0F, // Return
     eBrTable            = 0x0E, // Switch/match
     eCall               = 0x10, // Call function by local index
-    eCallIndirect       = 0x11, // Call from ptr
+    eCallIndirect       = 0x11, // Call from function ID
 
     eDrop               = 0x1A, // Pop stack
     eSelect             = 0x1B, // Select nonzero numeric operand

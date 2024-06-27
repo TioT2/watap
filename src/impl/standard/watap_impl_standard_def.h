@@ -28,6 +28,13 @@ namespace watap::impl::standard
     } /* End of 'import_element' function */
   }; /* End of 'import_element' structure */
 
+  /* Export element representation structure */
+  struct export_element
+  {
+    bin::import_export_type Type; // Import/Export type
+    UINT32 Index;                 // Element index
+  }; /* End of 'export_element' structure */
+
   /* Import object name representation structure */
   struct import_name
   {
@@ -91,27 +98,41 @@ namespace watap::impl::standard
     std::vector<UINT8> Instructions;           // Function instruction list
   }; /* End of 'function' class */
 
+  /* Compilation status */
+  enum class compile_status
+  {
+    eOk,                           // Success
+    eLocalParsingError,            // Error during local variable parsing
+    eNoOperandsForUnary,           // No operands for unary operation
+    eNoOperandsForBinary,          // No operands for binary operation
+    eNoFunctionArguments,          // No values for function in stack
+    eInvalidOperandType,           // Invalid operand type
+    eInvalidLocalIndex,            // Invalid index of local variable
+    eInvalidFunctionArgumentsType, // Invalid function argument type
+    eInvalidFunctionIndex,         // Invalid function index
+    eInvalidFunctionTypeIndex,     // Invalid function type index
+    eStackNotEmpty,                // Stack isn't empty at end of execution
+    eWrongReturnValueType,         // Wrong type of value, that this function returns
+    eUnsupportedFeature,           // Unsupported feature (Vector operations, system instructions, etc.)
+  }; /* End of 'compile_status' enumeration */
+
   /* WASM Module representation structure */
   class source_impl : public source
   {
   private:
 
-    /* JIT Compilation status */
-    enum class jit_compile_status
+    /* Expression compilation function.
+     * ARGUMENTS:
+     *   - code span:
+     *       std::span<const UINT8> CodeSpan;
+     * RETURNS:
+     *   (jit_compile_status) Expression compilation status.
+     */
+    compile_status CompileExpression( std::span<const UINT8> CodeSpan )
     {
-      eOk,                           // Success
-      eLocalParsingError,            // Error during local variable parsing
-      eNoOperandsForUnary,           // No operands for unary operation
-      eNoOperandsForBinary,          // No operands for binary operation
-      eNoFunctionArguments,          // No values for function in stack
-      eInvalidOperandType,           // Invalid operand type
-      eInvalidLocalIndex,            // Invalid index of local variable
-      eInvalidFunctionArgumentsType, // Invalid function argument type
-      eInvalidFunctionIndex,         // Invalid function index
-      eStackNotEmpty,                // Stack isn't empty at end of execution
-      eWrongReturnValueType,         // Wrong type of value, that this function returns
-      eUnsupportedFeature,           // Unsupported feature (Vector operations, system instructions, etc.)
-    }; /* End of 'jit_compile_status' enumeration */
+      return compile_status::eUnsupportedFeature;
+    } /* End of 'CompileExpression' function */
+
 
     /* Just In Time compilation function.
      * ARGUMENTS:
@@ -120,20 +141,19 @@ namespace watap::impl::standard
      * RETURNS:
      *   (jit_compile_status) Compilation status.
      */
-    jit_compile_status CompileJIT( UINT32 FunctionIndex );
+    compile_status CompileJIT( UINT32 FunctionIndex );
 
   public:
 
-    std::map<import_name, import_element> RequiredImports; // Required import set
-    std::vector<bin::table_type> Tables;                   // Table set
+    std::map<import_name, import_element> Imports;              // Required import set
+    std::map<std::string, export_element, std::less<>> Exports; // Export set
+    std::optional<std::string>            Start;                // Start function name (optional)
 
-
-    std::optional<std::string> StartName;                                           // Start function name (optional)
-    std::vector<function_signature> FunctionSignatures;                             // Function signature list
-    std::vector<UINT32> FunctionSignatureIndices;                                   // Indices of function signatures
+    std::vector<function_signature> FunctionSignatures; // Function signature list
+    std::vector<bin::table_type> Tables;                // Table set
+    std::vector<UINT32> FunctionSignatureIndices;       // Indices of function signatures
 
     std::vector<std::variant<raw_function_data, compiled_function_data>> Functions; // Function lists
-    std::map<std::string, UINT32, std::less<>> FunctionExportTable;                 // Exported function table
 
     /* Source implementation constructor */
     source_impl( VOID )
@@ -154,8 +174,7 @@ namespace watap::impl::standard
         return nullptr;
       if (const compiled_function_data *FData = std::get_if<compiled_function_data>(&Functions[FunctionIndex]))
         return FData;
-      // uugh
-      if (const_cast<source_impl *>(this)->CompileJIT(FunctionIndex) != jit_compile_status::eOk)
+      if (const_cast<source_impl *>(this)->CompileJIT(FunctionIndex) != jit_compile_status::eOk) // uugh
         return nullptr;
       return &std::get<compiled_function_data>(Functions[FunctionIndex]);
     } /* End of 'GetFunction' function */
@@ -169,10 +188,9 @@ namespace watap::impl::standard
      */
     const compiled_function_data * GetExportFunction( const std::string_view Name ) const
     {
-      if (auto Iter = FunctionExportTable.find(Name); Iter != FunctionExportTable.end())
-        return GetFunction(Iter->second);
-      else
-        return nullptr;
+      if (auto Iter = Exports.find(Name); Iter != Exports.end() && Iter->second.Type == bin::import_export_type::eFunction)
+        return GetFunction(Iter->second.Index);
+      return nullptr;
     } /* End of 'GetExportFunction' function */
 
     /* Start function name getting function.
@@ -182,7 +200,7 @@ namespace watap::impl::standard
      */
     std::optional<std::string_view> GetStartName( VOID ) const override
     {
-      return StartName;
+      return Start;
     } /* End of 'GetStartName' function */
   }; /* End of 'source' class */
 
@@ -401,6 +419,25 @@ namespace watap::impl::standard
       Trapped = FALSE;
     } /* End of 'Restart' function */
   }; /* End of 'runtime_impl' class */
+
+  /* Binary stream utility set */
+  namespace bin_util
+  {
+    /* UINT32 from value parsing function.
+     * ARGUMENTS:
+     *   - binary stream:
+     *       binary_input_stream &Stream;
+     * RETURNS:
+     *   (std::optional<UINT32>) Parsed UINT32.
+     */
+    std::optional<UINT32> ParseUint( binary_input_stream &Stream )
+    {
+      auto [Value, Offset] = leb128::DecodeUnsigned(Stream.CurrentPtr());
+      if (Stream.Get<UINT8>(Offset))
+        return static_cast<UINT32>(Value);
+      return std::nullopt;
+    } /* End of 'ParseUint' function */
+  } /* end of 'bin_util' namespace */
 } /* end of 'watap::impl::standard' namespace */
 
 #endif // !defined(__watap_impl_standard_def_h_)
